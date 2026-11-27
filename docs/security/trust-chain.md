@@ -6,7 +6,8 @@ This page describes a platform-independent, signature-based trust model for secu
 
 A few terms used throughout:
 
-- **Root of trust:** the starting point the device relies on to verify later stages. Its original code and configuration must be established through trusted manufacture or provisioning, then protected against the attacker being considered. It may be boot ROM or a bootloader locked against that attacker.
+- **Attacker in scope:** an attacker with the capabilities a claim says it resists. Requirement 8 says to list those capabilities.
+- **Root of trust:** the starting point the device relies on to verify later stages. Its original code and configuration must be established through trusted manufacture or provisioning, then protected against the attacker in scope. It may be boot ROM or a bootloader locked against the attacker in scope.
 - **Boot stage:** any code that runs before the application and can influence what runs next. A **mutable** stage is one that can be changed after manufacture, for example a bootloader stored in ordinary flash.
 - **Trust anchor:** the public key, or a hash of it, that the verifier uses to decide which signatures to accept.
 - **Digest:** a fixed-length value produced by a cryptographic hash; here, it identifies the image bytes covered by the signature.
@@ -20,8 +21,8 @@ flowchart TD
     RoT["<b>Root of trust</b><br/>boot ROM or locked boot code"]
     Stages["<b>Intermediate boot stages</b><br/>if any; each verified before it runs"]
     Verifier["<b>Trusted verifier</b>"]
-    AltVerifier["<b>Authorized alternate verifier</b>"]
-    Disabled(["Path disabled"])
+    AltVerifier["<b>Authorized alternate verifier</b><br/>authenticated by a trusted stage"]
+    Disabled["Path disabled"]
     Anchor[("<b>Trust anchor<br/>and boot policy</b><br/>protected, provisioned on device")]
     Image["<b>Installed application image</b><br/>bytes bound to signed metadata"]
     App(["<b>Application runs</b>"])
@@ -29,8 +30,9 @@ flowchart TD
 
     RoT -->|verifies| Stages
     Stages -->|verifies| Verifier
+    RoT -.->|verifies| AltVerifier
     Anchor -.->|input to the decision| Verifier
-    Anchor -.->|input to the decision| AltVerifier
+    Anchor -.-> AltVerifier
     Verifier -->|checks every boot| Image
     Image -->|unchanged until handoff| App
     Bypass -.->|if enabled| AltVerifier
@@ -54,7 +56,9 @@ flowchart TD
     class Disabled safe
 ```
 
-Read the diagram from top to bottom. Each stage is trusted because the stage before it verified it, or because it is the root of trust and is protected against the attacker being considered. On some devices the root of trust *is* the bootloader, for example when the bootloader sits in ROM or in flash locked against that attacker. In that case there are no intermediate stages.
+Read the diagram from top to bottom. Each stage is trusted because the stage before it verified it, or because it is the root of trust and is protected against the attacker in scope.
+
+Sometimes the root of trust *is* the bootloader—for example, when it runs from ROM or flash locked against the attacker in scope. In that case, there are no intermediate stages.
 
 The trust anchor and boot policy are inputs to the verifier, not stages that run. They matter just as much, though: whoever can change them decides what the device accepts.
 
@@ -66,15 +70,17 @@ For example, if holding a recovery button starts unsigned code, signing every no
 
 A platform integration that claims verified boot MUST meet all of the following.
 
-1. **Verify every boot stage.** Every piece of code that runs before the application and can affect the boot decision is either the root of trust or is verified by an earlier trusted stage before it runs. Protecting a stage from writes is not the same as verifying it; if a stage is trusted because it is immutable, say so and explain how its original code and configuration became trusted.
-2. **Protect the trust anchor and policy.** They are provisioned through a trusted process and cannot be changed by the attacker the claim covers. Private signing keys are never stored on the device.
-3. **Account for every boot path.** Debug access, recovery modes, alternate boot sources and ROM download modes must either provide equivalent authorization and integrity guarantees under protected local policy, or be disabled against the attacker the claim covers. A trusted recovery path may use a different verifier or key if policy explicitly allows it. Any path that can start code the policy did not authorize invalidates the claim.
-4. **Bind each checked image to authenticated metadata.** For every mutable boot stage and application image that the chain verifies, authenticated metadata must identify at least the image's digest and length, plus anything else that changes how it is loaded or started. On every boot, the verifier checks the metadata signature and compares the installed bytes with that authenticated identity before the image runs.
+1. **Verify every boot stage.** Every piece of code that runs before the application and can affect the boot decision is either the root of trust or is verified by an earlier trusted stage before it runs. Protecting a stage from writes is not the same as verifying it. If the root of trust is a locked bootloader rather than ROM, state how its code and configuration became trusted.
+2. **Protect the trust anchor and policy.** They are provisioned through a trusted process and cannot be changed by the attacker in scope. Private signing keys are never stored on the device.
+3. **Account for every boot path.** Debug access, recovery modes, alternate boot sources and ROM download modes must either provide equivalent authorization and integrity guarantees under protected local policy, or be disabled against the attacker in scope. A trusted recovery path may use a different verifier or key if policy explicitly allows it. Any path that can start code the policy did not authorize invalidates the claim.
+
+   For example, a ROM download mode that lets the attacker in scope run unsigned code from RAM must be locked out.
+4. **Bind each checked image to authenticated metadata.** For every boot stage and application image verified by an earlier stage, authenticated metadata must identify at least the image's digest and length, plus anything else that changes how it is loaded or started. On every boot, the verifying stage checks the metadata signature and compares the installed bytes with that authenticated identity before the image runs.
 
    A metadata signature paired with a separate, unsigned checksum does not authenticate the image. Checking only when an update is installed is not verified boot.
 5. **Keep each checked stage unchanged until it runs.** A stage verified by earlier code must remain unchanged from verification until execution begins. The same applies to the application: the bytes checked must be the bytes the processor starts at handoff. If the integration cannot guarantee this, it MUST NOT claim verified boot. Keeping code unchanged after the application starts is a separate runtime property; see section 4.
 6. **Make target and identity decisions locally.** A package may say which product it is for or where it expects to be loaded. The device's own protected policy decides whether that is acceptable and where bytes actually go.
-7. **Fail safely.** If any stage or image fails verification, that code does not run. Recovery is subject to requirement 3; document what happens when verification fails and whether an authorized recovery path is available.
+7. **Fail closed.** If any stage or image fails verification, that code does not run. Recovery is subject to requirement 3.
 8. **State what the claim covers.** List the attacker capabilities the integration resists, the ones it does not, and the evidence for each.
 
 ## 3. Assurance labels
@@ -84,9 +90,9 @@ Use the label that matches what the device actually guarantees. The two are not 
 | Label | What it means |
 | --- | --- |
 | **Authenticated update** | The update path only accepts packages signed by a trusted key and allowed by local policy. It does not promise that the installed image is checked on every boot, or that other boot paths apply the same rules. |
-| **Verified boot** | Every boot path the attacker can reach ends at a trusted verifier: either the immutable root of trust or a verifier authenticated by an earlier trusted stage. It checks the installed image against protected local policy on every boot, and the checked bytes are the bytes that start running. |
+| **Verified boot** | Every boot path reachable by the attacker in scope ends at a trusted verifier: either the root of trust or a verifier authenticated by an earlier trusted stage. It checks the installed image against protected local policy on every boot, and the checked bytes are the bytes that start running. |
 
-A verified-boot claim applies to the whole device for the stated attacker. You can make a narrower claim, such as authenticated update, but do not call it verified boot while a reachable bypass exists.
+A verified-boot claim applies to the whole device for the attacker in scope. You can make a narrower claim, such as authenticated update, but do not call it verified boot while a reachable bypass exists.
 
 Encryption is a separate concern. Encryption alone does not establish a trusted boot chain, even when it detects tampering: the device still needs a trusted verifier and protected policy to decide what may run.
 
@@ -94,12 +100,13 @@ Encryption is a separate concern. Encryption alone does not establish a trusted 
 
 Verified boot is about what starts. On its own it does not provide:
 
-- **Protection against rollback:** an older image that was once authorized may still be accepted, unless the device separately enforces version freshness.
-- **Safety of authorized code:** verified boot proves that the image matches what a trusted key authorized, not that the image is safe or free of vulnerabilities. A compromised signing key can authorize malicious code until that key is revoked or replaced.
-- **Key revocation or rotation:** these need their own mechanism, including a safe way to recover if a key change goes wrong.
-- **Confidentiality:** signed firmware may still be readable in transit and in storage.
-- **Runtime protection:** once the application starts, verified boot does not stop it from misbehaving, being exploited, or changing code that is already running. Keeping running code unchanged needs runtime controls such as memory protection.
-- **Availability:** an attacker may still interrupt updates or block access to recovery.
+- Protection against rollback: an older image that was once authorized may still be accepted, unless the device separately enforces version freshness.
+- Safety of authorized code: verified boot proves that the image matches what a trusted key authorized, not that the image is safe or free of vulnerabilities. A compromised signing key can authorize malicious code until that key is revoked or replaced.
+- Key revocation or rotation: these need their own mechanism, including a safe way to recover if a key change goes wrong.
+- Confidentiality: signed firmware may still be readable in transit and in storage.
+- Runtime protection: once the application starts, verified boot does not stop it from misbehaving, being exploited, or changing code that is already running. Keeping running code unchanged needs runtime controls such as memory protection.
+- Availability: an attacker may still interrupt updates or block access to recovery.
+- Remote assurance (attestation): verified boot does not by itself let a remote party confirm which software booted. That requires measured boot (recording a hash of each stage as it starts) and an attestation mechanism.
 
 If a product needs any of these, state them as separate claims.
 

@@ -103,14 +103,14 @@ References are sections of [spec.md](../spec.md), [design-guidelines.md](design-
 | ID | Treatment | How | Reference | Test |
 | --- | --- | --- | --- | --- |
 | P1 | Partial | The installed image and retained manifest are verified at every boot. Modification is detected, not prevented | spec 9; DG 4 | B3, B4 |
-| P2 | Platform | Requires a trusted root of trust, plus a trust anchor and boot policy protected against the stated attacker; the verifier may be immutable or authenticated by an earlier trusted stage | TC 2 (items 1, 2) | platform walkthrough |
+| P2 | Platform | Requires a root of trust established by trusted provisioning, plus a trust anchor and boot policy protected against the stated attacker; the verifier may be immutable or authenticated by an earlier trusted stage | TC 2 (items 1, 2) | platform walkthrough |
 | P3 | Platform | Checked code must stay unchanged until handoff (TC 2 item 5). Keeping it unchanged while it runs is a separate runtime protection the platform must provide (TC 4) | TC 2 (item 5); TC 4 | platform walkthrough |
 | P4 | Accepted | Encryption is transit-only | spec 12 | none |
 | P5 | Partial | Staging, journal and recovery mode. The old image may be lost; recovery mode is the guarantee | DG 3 | B1, B2, B5 |
 | P6 | Accepted | Verification failure enters recovery; watchdogs and health checks are the integrator's job | DG 3, 5 | none |
 | P7 | Accepted | Hardware attacks are outside the v0.1 profile | none | none |
 | P8 | Mitigated | The journal is treated as untrusted recovery input: its fields are validated, staging is re-authenticated before resuming, and journal state never marks an image bootable or skips boot verification | DG 3 | B2, B11 |
-| P9 | Platform | Debug and alternate boot paths must provide equivalent verification or be disabled against the stated attacker; a reachable bypass prevents a verified-boot claim | TC 2 (item 3); TC 3 | platform walkthrough |
+| P9 | Platform | Debug and alternate boot paths must provide equivalent authorization and integrity guarantees under protected local policy, or be disabled against the stated attacker; a reachable bypass prevents a verified-boot claim | TC 2 (item 3); TC 3 | platform walkthrough |
 | P10 | External | Correct trust-anchor and policy provisioning is outside SUF2 and must be established by the manufacturing process | TC 2; TC 6 | manufacturing/provisioning review |
 | P11 | Out of scope | v0.1 defines application packages, not bootloader-update authorization or rollback policy | spec 1, 12 | none |
 | P12 | Platform | Recovery interfaces must preserve equivalent authorization and protected-state guarantees under protected policy; they may use a distinct verifier or key if explicitly authorized | DG 3, 5; TC 2 (items 3, 7) | B13; platform walkthrough |
