@@ -1,6 +1,6 @@
 # SUF2 conformance test catalogue
 
-This catalogue lists the cases an implementation of [spec.md](spec.md) should pass. It contains no code or vectors yet; vectors will be produced and frozen with the specification, so that independent implementations (host tool and C library) agree.
+This catalogue lists the cases an implementation of [suf2-specification.md](suf2-specification.md) should pass. It contains no code or vectors yet; vectors will be produced and frozen with the specification, so that independent implementations (host tool and C library) agree.
 
 Result key: **A** accept, **R** reject, **I** ignore.
 

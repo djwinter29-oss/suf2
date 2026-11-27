@@ -2,7 +2,7 @@
 
 Secure boot decides which code a device may run. Firmware updates must also decide which code to accept and how to install it safely.
 
-This model covers both. It considers hostile update files, compromised delivery systems, stolen keys, interrupted updates and attacks on the device itself. It describes what can go wrong, not which problems SUF2 solves. SUF2's response is in its [security design](../../security/security-design.md).
+This model covers both. It considers hostile update files, compromised delivery systems, stolen keys, interrupted updates and attacks on the device itself. It describes what can go wrong, not which problems SUF2 solves. SUF2's response is in its [security design](../security/security-design.md).
 
 ## Scope
 

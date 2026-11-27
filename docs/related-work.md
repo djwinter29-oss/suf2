@@ -34,7 +34,7 @@ A repository search did not find a project that provides this combination. The s
 | New fixed manifest (current draft) | Small, auditable, one parser, tailored to UF2 | New format needs independent review; no existing tooling |
 | Adopt wolfBoot | Mature, includes Pico 2 support | GPLv3 conflicts with this repository's BSD-3-Clause license for direct reuse |
 
-**Current leaning:** keep the draft fixed manifest for v0.1 as the specification's subject, but decide before freezing whether wrapping an MCUboot image is a better fit. This is an open question in [spec.md](spec.md).
+**Current leaning:** keep the draft fixed manifest for v0.1 as the specification's subject, but decide before freezing whether wrapping an MCUboot image is a better fit. This is an open question in [suf2-specification.md](suf2-specification.md).
 
 ## 5. Licensing
 

@@ -1,6 +1,6 @@
 # SUF2 secure design guidelines
 
-Guidance for implementers of SUF2 receivers, loaders and host tools. It complements [spec.md](../spec.md) (what must hold) with how to build it safely. Terms follow the generic threat model in [threat-model.md](../reference/security/threat-model.md); what SUF2 does about each threat is in [security-design.md](security-design.md).
+Guidance for implementers of SUF2 receivers, loaders and host tools. It complements [suf2-specification.md](../suf2-specification.md) (what must hold) with how to build it safely. Terms follow the generic threat model in [threat-model.md](../reference/threat-model.md); what SUF2 does about each threat is in [security-design.md](security-design.md).
 
 ## 1. Parsing untrusted input
 
@@ -37,7 +37,7 @@ Never feed GCM streaming output to the active slot before the final tag has been
 - Verify the retained signed manifest and the installed bytes on every boot.
 - On failure, enter update mode; do not run the application.
 - Document the boot-time cost, which grows with image size, and measure it on the target.
-- Per-boot verification detects modification. It does not prevent it; that needs the platform guarantees in [trust-chain.md](../reference/security/trust-chain.md).
+- Per-boot verification detects modification. It does not prevent it; that needs the platform guarantees in [trust-chain.md](../reference/trust-chain.md).
 
 ## 5. Update entry
 
