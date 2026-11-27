@@ -5,10 +5,11 @@ Guidance for implementers of SUF2 receivers, loaders and host tools. It compleme
 ## 1. Parsing untrusted input
 
 - Treat every UF2 sector as hostile until fully validated.
-- Use a fixed layout; reject unknown versions, suites, flags and nonzero reserved fields.
+- Use the fixed block and manifest layouts; reject unsupported format versions, unknown flags and nonzero reserved fields. Algorithms are fixed by the version.
 - Use checked arithmetic for every offset, length and count. Reject overflow and overlap.
 - Never allocate based on an untrusted count. Use caller-owned, bounded memory and a block bitmap.
-- Never write to flash using the UF2 `targetAddr` or the manifest load address directly.
+- Never write to flash using the UF2 `targetAddr` or the manifest load address directly. The manifest address is the intended execution base; local policy checks that base and image length and selects the physical installation destination.
+- Derive chunk offsets and final padding from `blockNo` and the signed image length. The 16-byte package ID associates blocks; it does not authenticate them.
 - Fuzz the receiver and verifier before any release claim.
 
 ## 2. Stage, verify, then install
@@ -21,7 +22,7 @@ Guidance for implementers of SUF2 receivers, loaders and host tools. It compleme
 6. Verify the installed bytes, then mark the image bootable as the final commit.
 7. Reboot and verify again on boot.
 
-Never feed GCM streaming output to the active slot before the final tag has been authenticated.
+Never feed GCM streaming output to the active slot before the final tag and plaintext digest have been authenticated. Keep verified staging unchanged through installation, and verify the installed bytes before making them bootable. Choose the decryption storage strategy per platform; the file format does not prescribe one.
 
 ## 3. Interruption safety
 
@@ -52,7 +53,7 @@ Never feed GCM streaming output to the active slot before the final tag has been
 - Provision public keys (or hashes) in a protected location. Key IDs only select among provisioned keys.
 - Label test keys and make production builds reject them.
 - Several provisioned verification keys are allowed. Rotation and revocation are deferred.
-- For encryption: a fresh CSPRNG nonce per package, no user nonce override, one symmetric key per product or fleet segment, and awareness that one extracted key exposes every package encrypted with it.
+- For encryption: a fresh CSPRNG nonce per AES-GCM invocation, no user nonce override, at most 2^32 invocations per key across all producers combined, one symmetric key per product or fleet segment, and awareness that one extracted key exposes every package encrypted with it. Count discarded and retried encryptions; copying an existing package does not add an invocation. Enforce the lifetime budget in the provisioning and signing pipeline, not separately per workstation or build job.
 
 ## 7. Cryptography
 

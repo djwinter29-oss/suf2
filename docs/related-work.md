@@ -30,11 +30,11 @@ A repository search did not find a project that provides this combination. The s
 
 | Option | Pros | Cons |
 | --- | --- | --- |
-| Carry an MCUboot image (header, TLVs, signature) inside UF2 records | Existing tooling, review history, key and image conventions | MCUboot's format is broader and more complex; its ecosystem assumes an MCUboot bootloader; UF2 hazards (ordering, mixing) still need a profile |
+| Carry an MCUboot image (header, TLVs, signature) inside UF2 blocks | Existing tooling, review history, key and image conventions | MCUboot's format is broader and more complex; its ecosystem assumes an MCUboot bootloader; UF2 hazards (ordering, mixing) still need a profile |
 | New fixed manifest (current draft) | Small, auditable, one parser, tailored to UF2 | New format needs independent review; no existing tooling |
 | Adopt wolfBoot | Mature, includes Pico 2 support | GPLv3 conflicts with this repository's BSD-3-Clause license for direct reuse |
 
-**Current leaning:** keep the draft fixed manifest for v0.1 as the specification's subject, but decide before freezing whether wrapping an MCUboot image is a better fit. This is an open question in [suf2-specification.md](suf2-specification.md).
+**Decision for v0.1:** use a fixed SUF2 manifest rather than wrapping an MCUboot image. SUF2 needs one image, one signature algorithm and optional AES-GCM, without TLVs or key wrapping. A complete manifest fits in one block, and image position comes from UF2 block numbering. This keeps the portable format smaller in scope, at the cost of needing new tooling and independent review. See [suf2-specification.md](suf2-specification.md#13-open-items) for the remaining work.
 
 ## 5. Licensing
 

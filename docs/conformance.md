@@ -10,10 +10,10 @@ Result key: **A** accept, **R** reject, **I** ignore.
 | --- | --- | --- |
 | V1 | Signed-only, one-chunk image | A |
 | V2 | Signed-only, multi-chunk image with short last chunk | A |
-| V3 | Signed-only, image length exactly a multiple of 224 | A |
+| V3 | Signed-only, image length exactly a multiple of 256 | A |
 | V4 | Encrypted, valid key and tag | A |
 | V5 | Blocks in reverse order | A |
-| V6 | Blocks in random order, image records before manifest | A |
+| V6 | Blocks in random order, image blocks before manifest | A |
 | V7 | Every block duplicated identically | A, completeness unchanged |
 | V8 | Unrelated sectors interleaved | I for unrelated, A overall |
 | V9 | Maximum allowed image size | A |
@@ -27,15 +27,19 @@ Result key: **A** accept, **R** reject, **I** ignore.
 | S3 | High-S signature | R |
 | S4 | Valid signature by an unprovisioned key | R |
 | S5 | Unknown signing-key ID | R |
-| S6 | Embedded public key not provisioned locally | R |
-| S7 | Unsupported signature, digest or encryption suite | R |
-| S8 | Unsupported manifest or record version | R |
-| S9 | Nonzero reserved fields | R |
+| S6 | Signing-key ID derived from an attacker key, with that key's valid signature | R; no package-supplied trust root |
+| S7 | Package using a different signature, digest or encryption algorithm under format version 1 | R; algorithms are fixed, not selected by fields |
+| S8 | Unsupported format version | R |
+| S9 | Nonzero byte in either manifest reserved range (84–95 or 176–191) | R |
 | S10 | Wrong product identifier | R |
-| S11 | Load address or size outside local policy | R |
+| S11 | Intended execution base or image length outside local policy, including a staging address that is not a permitted execution base | R; no package-directed physical write |
 | S12 | Zero image length | R |
-| S13 | Plaintext and stored length differ | R |
-| S14 | Encryption flag disagrees with suite | R |
+| S13 | Signed image length inconsistent with received block count or image bytes | R |
+| S14 | Manifest flag bits other than bit 0 set | R |
+| S15 | Signed-only package with different digests, or a nonzero encryption-key ID, nonce or tag | R |
+| S16 | Encrypted package with an all-zero encryption-key ID | R |
+| S17 | Wrong manifest magic, or `numBlocks` not ceil(L / 256) + 1 | R |
+| S18 | Signature over the wrong message: hashed twice, or without the `"SUF2-MANIFEST-V1"` prefix | R |
 
 ## 3. Image integrity
 
@@ -54,15 +58,23 @@ Result key: **A** accept, **R** reject, **I** ignore.
 | T1 | Conflicting duplicate (same block number, different bytes) | R, session fails |
 | T2 | Blocks from two packages mixed | R |
 | T3 | Wrong `numBlocks` or `blockNo` | R |
-| T4 | Offset, length or count inconsistent with the manifest | R |
-| T5 | Wrong UF2 flags, wrong family ID, nonzero `targetAddr` | R |
-| T6 | Payload size not 256 or nonzero tail bytes | R |
+| T4 | Manifest or image content placed at the wrong `blockNo` | R during structure or image verification |
+| T5 | SUF2 family ID with other flags wrong (`not main flash` clear or an extra flag set), or nonzero `targetAddr` | R |
+| T6 | Payload size not 272, nonzero data[272..475], or nonzero last-chunk padding | R |
 | T7 | Bad UF2 magic | I |
 | T8 | Highest-numbered block arrives first; transfer incomplete | not complete |
 | T9 | Session reset after failure, then a valid package | A |
 | T10 | Repeated failed candidates, then valid | A |
-| T11 | Integer overflow in offset plus length | R |
+| T11 | Integer overflow in derived chunk count, block offset or storage range | R |
 | T12 | Huge `numBlocks`, endless stream, or repeated failing sessions | R or bounded; no unbounded memory or state growth |
+| T13 | UF2 blocks of another family, or with the `familyID present` flag clear, during a session or alone | I; session unaffected; never installed through plain-UF2 fallback |
+| T14 | SUF2 blocks after a session has failed and before a reset, including a complete valid package | R; session stays failed |
+| T15 | All blocks carry the same package identifier, but it differs from the one computed from the manifest | R |
+| T16 | After completion, an identical duplicate and then a different block from another package | I without error, then R for the second block; candidate and installation unaffected |
+| T17 | Same package identifier but conflicting `numBlocks` values while collecting | R; session fails |
+| T18 | With no session or while collecting, `numBlocks` below 2, above the local limit, or `blockNo >= numBlocks` | R before staging; session enters failed |
+| T19 | Malformed or different-package block arrives after candidate A is complete | Report/drop the incoming block; candidate A's verification and installation are unaffected |
+| T20 | First recognized SUF2 block is malformed or out of bounds | R without staging; session enters failed until reset |
 
 ## 5. Encryption
 
@@ -74,7 +86,7 @@ Result key: **A** accept, **R** reject, **I** ignore.
 | E4 | AAD-covered manifest field modified | R |
 | E5 | Wrong or unprovisioned encryption key ID | R |
 | E6 | Signed-only package on a device requiring encryption | R |
-| E7 | Encrypted flag cleared by an attacker | R (signature fails) |
+| E7 | Encrypted flag cleared by an attacker | R; fails signed-only structure or signature verification |
 | E8 | Failed encrypted verification retried as signed-only | R |
 
 ## 6. Installation and boot (platform tests)
@@ -95,10 +107,11 @@ Result key: **A** accept, **R** reject, **I** ignore.
 | B12 | Attempt to alter security policy through package metadata or persistent update state | rejected; protected policy and permitted destinations remain unchanged |
 | B13 | Attempt to use a recovery interface to install unauthorized code or alter protected state | rejected or blocked; no unauthorized code runs |
 | B14 | Attempt to use a normal update-mode request or update-interface command to bypass authorization or gain privileges | rejected or limited to selecting the update path |
+| B15 | Manifest is stored separately from the image and flash padding follows the L-byte image | A; boot hash covers exactly L image bytes |
 
 ## 7. Robustness
 
-- Fuzz the record parser, manifest parser and receiver state machine.
+- Fuzz the UF2 block parser, manifest parser and receiver state machine.
 - Random FAT-style writes: partial sector writes, rewrites, large unrelated writes.
 - Measure and enforce maximum image size at its boundary (one byte over must reject).
 

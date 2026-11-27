@@ -64,11 +64,11 @@ References are sections of [suf2-specification.md](../suf2-specification.md), [d
 | ID | Treatment | How | Reference | Test |
 | --- | --- | --- | --- | --- |
 | U1 | Mitigated | Mandatory signature check against a provisioned key; no unsigned mode | spec 7, 9 | S1–S5, S9 |
-| U2 | Mitigated | Manifest signature, image digests and, when encrypted, the GCM tag. UF2 and record headers are validated structurally and are not all signed | spec 6, 7, 9 | S1, I1, I4, E1–E4 |
-| U3 | Mitigated | Package identifier, canonical block numbering and a final digest over the assembled image | spec 4, 5, 8 | T2, T3 |
-| U4 | Mitigated | Assembly is order-independent: valid reordering and identical duplicates are **accepted**, because the assembled package must still verify. Truncation and conflicting duplicates are rejected | spec 8 | V5–V7, T1, T8–T10, I2, I3 |
+| U2 | Mitigated | Manifest signature, image digests and, when encrypted, the GCM tag. UF2 headers and package identifiers are checked against the fixed layout and signed manifest; they have no separate signature | spec 3–7, 9 | S1, I1, I4, E1–E4 |
+| U3 | Mitigated | Package identifier recomputed from the manifest, canonical block numbering and a final digest over the assembled image. Blocks of other UF2 families never enter a session | spec 4, 5, 8 | T2, T3, T13, T15 |
+| U4 | Mitigated | Assembly is order-independent: valid reordering and identical duplicates are **accepted**, because the assembled package must still verify. Truncation, conflicting duplicates and inconsistent block counts are rejected. A failed session stays failed until a local reset, and blocks arriving after completion cannot change the candidate | spec 8 | V5–V7, T1, T8–T10, T14, T16–T20, I2, I3 |
 | U5 | Partial | Fixed layout, checked arithmetic, bounded caller-owned state. Evidence depends on fuzzing, which is not yet planned in detail | DG 1 | T4–T6, T11; fuzzing plan (gap) |
-| U6 | Mitigated | Destination comes from local configuration; UF2 `targetAddr` must be zero | spec 3, 6; TC 2 | T5, S11 |
+| U6 | Mitigated | The signed load address identifies the intended execution base. Local policy checks that base and image length and selects the physical installation destination; UF2 `targetAddr` must be zero | spec 3, 6; TC 2 | T5, S11 |
 | U7 | Partial | Fixed limits and session reset on link disconnect bound resource use. Someone with access to the update interface can still keep the device in update mode | spec 8; DG 5 | T9, T10, T12 |
 | U8 | Partial | Staged data is re-verified immediately before destructive writes, then installed bytes are checked before being marked bootable. On each boot, the image must stay unchanged from verification to handoff | spec 9; DG 2; TC 2 (item 5) | B9 |
 | U9 | Partial | The loader does not export keys or protected plaintext; protection against extraction through physical access or side channels is not guaranteed by the package profile | DG 8; TC 2 | B10; platform review |
@@ -96,9 +96,9 @@ References are sections of [suf2-specification.md](../suf2-specification.md), [d
 | K2 | External | Build and signing pipeline security | none | none |
 | K3 | Partial | Test keys are labelled, and production configurations must reject them | DG 6 | gap |
 | K4 | Accepted | A key per product or fleet segment limits the blast radius compared with one fleet-wide key, but extraction exposes packages protected by that key across its devices. Hardware resistance to key extraction is a platform concern | DG 6 | platform key-extraction review |
-| K5 | Partial | Nonce generation is the producer's job: the host tool must use a fresh CSPRNG nonce per package with no user override. A device cannot detect reuse, so this is a host-tool requirement, not a bootloader check | spec 7; DG 6 | host-tool test (gap) |
-| K6 | Mitigated | Only provisioned keys are trusted; key IDs only select among them | spec 7 | S4–S6 |
-| K7 | Mitigated | Fixed algorithm suites; unknown suites are rejected; no fallback from encrypted to signed-only | spec 7, 9 | S7, E7, E8 |
+| K5 | Partial | Producers must use a fresh CSPRNG nonce per AES-GCM invocation with no user override. The provisioning and signing pipeline must enforce at most 2^32 invocations per key over its lifetime, across all producers combined, including discarded or retried encryptions. A device cannot detect reuse or enforce that shared budget | spec 7; DG 6 | host-tool and shared-budget tests (gap) |
+| K6 | Mitigated | Only provisioned keys are trusted; key IDs only select among them | spec 6.1, 9 | S4–S6 |
+| K7 | Mitigated | Algorithms are fixed by the format version; unsupported versions are rejected; no fallback from encrypted to signed-only | spec 7, 9, 11 | S7, S8, E7, E8 |
 | K8 | Accepted | v0.1 has no key-revocation or retirement mechanism; a provisioned key remains trusted | spec 12 | none |
 | K9 | Out of scope | v0.1 does not define authorized key transitions or recovery from a transition that removes all usable keys | spec 1, 12 | none |
 
@@ -169,7 +169,7 @@ SUF2 does not provide a hardware root of trust, so the outcome depends on the pl
 | Device security policy cannot be changed through package or recovery input | Test B12 and platform review |
 | Recovery paths do not bypass authorization or protected-state checks | Test B13 and platform walkthrough |
 | Normal update-mode requests do not grant privileges beyond selecting the update path | Test B14 |
-| The parser handles hostile input safely | A fuzzing plan (to be written) and tests T1–T12 |
+| The parser handles hostile input safely | A fuzzing plan (to be written) and tests T1–T20 |
 | Hardware boot protection gives the integrity described above | Each platform's documentation and a hardware walkthrough |
 | Per-boot verification of large images is fast enough | Measurement on each target |
 | Device secrets resist physical extraction and secret-dependent timing | Platform and cryptographic-library review |
@@ -191,9 +191,7 @@ Candidates for a later revision:
 - A key revocation, retirement or rotation mechanism (K1, K8), with a recoverable key-transition protocol (K9).
 - A verified-boot profile in which the loader restricts application flash access on hardware that supports it (X2).
 
-Open for v0.1:
-
-- Who decides whether encryption is required: the device, the product, or the package?
+Encryption is required only when protected device policy says so (spec 9.3). A package cannot weaken that policy.
 
 ## Keeping this current
 
