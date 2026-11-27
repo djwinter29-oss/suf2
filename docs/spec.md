@@ -6,7 +6,7 @@ Requirement words MUST, MUST NOT, SHOULD and MAY are used in the RFC 2119 sense.
 
 SUF2 defines a single-image, authenticated firmware package carried in UF2 blocks, with optional AES-256-GCM encryption in transit. It defines the package, the receiver behavior, and the installed-image verification rule. It does not define a bootloader, a transport other than UF2 blocks, key distribution, or anti-rollback.
 
-The specification answers the threat model in [threat-model.md](security/threat-model.md); the mapping from threats to specification sections is in [security-design.md](security/security-design.md). It relies on the platform guarantees in [trust-chain.md](security/trust-chain.md).
+The specification answers the threat model in [threat-model.md](reference/security/threat-model.md); the mapping from threats to specification sections is in [security-design.md](security/security-design.md). It relies on the platform guarantees in [trust-chain.md](reference/security/trust-chain.md).
 
 ## 2. Conventions
 

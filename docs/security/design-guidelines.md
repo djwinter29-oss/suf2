@@ -1,6 +1,6 @@
 # SUF2 secure design guidelines
 
-Guidance for implementers of SUF2 receivers, loaders and host tools. It complements [spec.md](../spec.md) (what must hold) with how to build it safely. Terms follow the threat model in [threat-model.md](threat-model.md); what SUF2 does about each threat is in [security-design.md](security-design.md).
+Guidance for implementers of SUF2 receivers, loaders and host tools. It complements [spec.md](../spec.md) (what must hold) with how to build it safely. Terms follow the generic threat model in [threat-model.md](../reference/security/threat-model.md); what SUF2 does about each threat is in [security-design.md](security-design.md).
 
 ## 1. Parsing untrusted input
 
@@ -14,11 +14,12 @@ Guidance for implementers of SUF2 receivers, loaders and host tools. It compleme
 ## 2. Stage, verify, then install
 
 1. Collect the whole candidate in staging storage.
-2. Verify signature, digests and, if encrypted, the GCM tag. A rejected package changes nothing.
+2. Verify signature, digests and, if encrypted, the GCM tag. A rejected package changes no installed image or boot-eligibility state.
 3. Re-verify the staged data immediately before any destructive step, because staging is mutable storage.
-4. Install in bounded steps under a journal.
-5. Verify the installed bytes, then mark the image bootable.
-6. Reboot and verify again on boot.
+4. Before modifying a destination that is currently bootable, durably invalidate its boot eligibility or ensure trusted boot-time verification rejects changed bytes. Keep an inactive candidate destination ineligible without invalidating a preserved active image. If no eligible image remains, trusted recovery must not depend on the image being overwritten.
+5. Install in bounded steps under a journal.
+6. Verify the installed bytes, then mark the image bootable as the final commit.
+7. Reboot and verify again on boot.
 
 Never feed GCM streaming output to the active slot before the final tag has been authenticated.
 
@@ -36,7 +37,7 @@ Never feed GCM streaming output to the active slot before the final tag has been
 - Verify the retained signed manifest and the installed bytes on every boot.
 - On failure, enter update mode; do not run the application.
 - Document the boot-time cost, which grows with image size, and measure it on the target.
-- Per-boot verification detects modification. It does not prevent it; that needs the platform guarantees in [trust-chain.md](trust-chain.md).
+- Per-boot verification detects modification. It does not prevent it; that needs the platform guarantees in [trust-chain.md](../reference/security/trust-chain.md).
 
 ## 5. Update entry
 

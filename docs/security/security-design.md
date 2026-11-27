@@ -1,6 +1,6 @@
 # SUF2 security design
 
-This page maps each threat in the [threat model](threat-model.md) to SUF2 v0.1's design, including what it deliberately leaves to the platform, integrator or a future version. The generic boot trust model is in [trust-chain.md](trust-chain.md); preliminary board notes are in [platform-integration.md](platform-integration.md). The wire format is in [spec.md](../spec.md), implementation guidance is in [design-guidelines.md](design-guidelines.md), and planned tests are in [conformance.md](../conformance.md).
+This page maps each threat in the [threat model](../reference/security/threat-model.md) to SUF2 v0.1's design, including what it deliberately leaves to the platform, integrator or a future version. The generic boot trust model is in [trust-chain.md](../reference/security/trust-chain.md); preliminary board notes are in [platform-integration.md](platform-integration.md). The wire format is in [spec.md](../spec.md), implementation guidance is in [design-guidelines.md](design-guidelines.md), and planned tests are in [conformance.md](../conformance.md).
 
 ## What SUF2 v0.1 covers
 
@@ -10,13 +10,25 @@ SUF2 is a firmware package format and bootloader verification profile. Version 0
 - **Optional transit encryption:** AES-256-GCM protects image contents on the way to the device. Installed firmware is stored in plaintext.
 - **UF2-block transport:** packages are carried as UF2 blocks. An integration may deliver those blocks over USB mass storage, serial, network or radio; the delivery protocol itself is not specified.
 - **Per-boot verification:** the bootloader keeps the signed manifest and re-verifies the installed image against it at every boot.
-- **Root of trust from the platform:** SUF2 does not protect the bootloader or trust anchor itself; the platform must satisfy the generic requirements in [trust-chain.md](trust-chain.md).
+- **Root of trust from the platform:** SUF2 does not protect the bootloader or trust anchor itself; the platform must satisfy the generic requirements in [trust-chain.md](../reference/security/trust-chain.md).
 
 Not in v0.1: anti-rollback, key revocation and rotation, encryption at rest, multi-image updates, runtime isolation of the application, provisioning of the trust anchor, and authenticated bootloader updates.
 
+## Update lifecycle in SUF2 v0.1
+
+The generic [update lifecycle](../reference/security/update-lifecycle.md) separates authorization, installation and boot eligibility. SUF2 uses the staged approach described in [design guidelines sections 2-4](design-guidelines.md#2-stage-verify-then-install):
+
+- Receive the complete candidate into staging, then check its signature, digests, local policy and, when encrypted, its GCM tag.
+- Re-verify staging before destructive writes. Install under a journal, treating journal fields as untrusted resumption input.
+- Before overwriting an eligible image, invalidate its eligibility or ensure trusted boot-time verification rejects changed bytes; recovery must remain independent of an image being overwritten.
+- Check the installed bytes before marking the image bootable, then verify the retained manifest and installed image again on every boot.
+- On failure, do not run an invalid application. Recovery accepts another authorized package; it does not bypass authorization.
+
+SUF2 does not promise to preserve the previous application through every interruption. Recovery is the fallback when no eligible image remains; a verified-boot claim additionally depends on the platform protections in [trust-chain.md](../reference/security/trust-chain.md).
+
 ## Objectives
 
-How SUF2 v0.1 answers the [security objectives](threat-model.md#security-objectives):
+How SUF2 v0.1 answers the [security objectives](../reference/security/threat-model.md#security-objectives):
 
 | Objective | v0.1 answer |
 | --- | --- |
@@ -41,11 +53,11 @@ Treatment values:
 
 - **Mitigated:** SUF2 requires a mechanism intended to defeat the threat. Nothing has been tested yet.
 - **Partial:** SUF2 reduces the risk or detects the attack, but cannot prevent it alone.
-- **Platform:** depends on the platform guarantees in [trust-chain.md](trust-chain.md).
+- **Platform:** depends on the platform guarantees in [trust-chain.md](../reference/security/trust-chain.md).
 - **Accepted:** known and not addressed in v0.1.
 - **External:** belongs to systems outside the bootloader, such as the signing pipeline or delivery service.
 
-References are sections of [spec.md](../spec.md), [design-guidelines.md](design-guidelines.md) (DG) or the generic [trust-chain requirements](trust-chain.md#2-requirements-for-a-verified-boot-claim) (TC), and cases in [conformance.md](../conformance.md).
+References are sections of [spec.md](../spec.md), [design-guidelines.md](design-guidelines.md) (DG) or the generic [trust-chain requirements](../reference/security/trust-chain.md#2-requirements-for-a-verified-boot-claim) (TC), and cases in [conformance.md](../conformance.md).
 
 ### Update input
 
@@ -119,7 +131,7 @@ References are sections of [spec.md](../spec.md), [design-guidelines.md](design-
 
 ## Outcomes by platform class
 
-SUF2 does not provide a hardware root of trust, so the outcome depends on the platform. The classes are defined in [trust-chain.md](trust-chain.md#3-assurance-labels):
+SUF2 does not provide a hardware root of trust, so the outcome depends on the platform. The classes are defined in [trust-chain.md](../reference/security/trust-chain.md#3-assurance-labels):
 
 - **Authenticated update:** the update path accepts packages authorized by a trusted key and local policy. This does not promise per-boot image checks or equivalent guarantees across other boot paths.
 - **Verified boot:** every boot path reachable to the stated attacker ends at a trusted verifier, which checks the installed image against protected local policy on each boot and ensures the checked bytes are the bytes executed.

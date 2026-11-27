@@ -2,7 +2,7 @@
 
 Secure boot controls which code a device starts, according to its protected boot policy. That depends on the whole path from a hardware starting point to the application, not on signatures alone. A signature shows that a particular key signed some data. It says nothing about who controlled the key, and nothing about whether the device will actually check it.
 
-This page describes a platform-independent, signature-based trust model for secure boot. It does not define a bootloader, and it does not claim that SUF2 supplies a hardware root of trust. How SUF2 maps onto these requirements is in [security-design.md](security-design.md); notes on specific boards are in [platform-integration.md](platform-integration.md).
+This page describes a platform-independent, signature-based trust model for secure boot. It does not define a bootloader, and it does not claim that SUF2 supplies a hardware root of trust. How SUF2 maps onto these requirements is in [security-design.md](../../security/security-design.md); notes on specific boards are in [platform-integration.md](../../security/platform-integration.md).
 
 A few terms used throughout:
 

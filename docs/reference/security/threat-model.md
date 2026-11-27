@@ -1,10 +1,8 @@
 # Firmware update and secure boot threat model
 
-**Status:** Design review draft | **Last reviewed:** 2026-11-27 | **Threat mapping checked against:** SUF2 v0.1 in [security-design.md](security-design.md)
-
 Secure boot decides which code a device may run. Firmware updates must also decide which code to accept and how to install it safely.
 
-This model covers both. It considers hostile update files, compromised delivery systems, stolen keys, interrupted updates and attacks on the device itself. It describes what can go wrong, not which problems SUF2 solves. The SUF2 response is in [security-design.md](security-design.md).
+This model covers both. It considers hostile update files, compromised delivery systems, stolen keys, interrupted updates and attacks on the device itself. It describes what can go wrong, not which problems SUF2 solves. SUF2's response is in its [security design](../../security/security-design.md).
 
 ## Scope
 

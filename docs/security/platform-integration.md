@@ -1,6 +1,6 @@
 # SUF2 platform integration notes
 
-These are preliminary notes for applying the generic [secure boot trust-chain requirements](trust-chain.md) to candidate SUF2 demo platforms. They are not evidence of a verified-boot claim. Each claim must be checked against the selected chip documentation, actual device configuration and integration tests.
+These are preliminary notes for applying the generic [secure boot trust-chain requirements](../reference/security/trust-chain.md) to candidate SUF2 demo platforms. They are not evidence of a verified-boot claim. Each claim must be checked against the selected chip documentation, actual device configuration and integration tests.
 
 ## RP2040
 
@@ -16,4 +16,4 @@ These are preliminary notes for applying the generic [secure boot trust-chain re
 
 ## Other platforms
 
-ESP32, STM32 and other candidate platforms need their own evidence against the requirements in [trust-chain.md](trust-chain.md#2-requirements-for-a-verified-boot-claim). Product-specific configuration matters as much as the chip's available security features.
+ESP32, STM32 and other candidate platforms need their own evidence against the requirements in [trust-chain.md](../reference/security/trust-chain.md#2-requirements-for-a-verified-boot-claim). Product-specific configuration matters as much as the chip's available security features.
