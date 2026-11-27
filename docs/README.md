@@ -19,8 +19,8 @@ These documents describe the SUF2 profile, its design choices and its implementa
 | [security/security-design.md](security/security-design.md) | What SUF2 v0.1 does about each threat, what it leaves to the platform, and what it accepts |
 | [security/platform-integration.md](security/platform-integration.md) | Preliminary SUF2 integration notes for RP2040, RP2350 and future platforms |
 | [security/design-guidelines.md](security/design-guidelines.md) | How to build a receiver and loader safely |
-| [suf2-specification.md](suf2-specification.md) | SUF2 v0.1 UF2 profile, record and manifest layout, cryptographic construction and receiver rules |
+| [suf2-specification.md](suf2-specification.md) | SUF2 v0.1 UF2 profile, package and manifest layout, cryptographic construction and receiver rules |
 | [conformance.md](conformance.md) | Test-case catalogue for implementations |
-| [related-work.md](related-work.md) | Existing projects, gap, and reuse-versus-new-format options |
+| [why-suf2.md](why-suf2.md) | Why SUF2 uses UF2 transport, what it adds, and the design trade-offs |
 
-Suggested reading order: start with the reusable threat model and trust chain, then read the secure boot lifecycle, followed by the SUF2 security design, specification, design guidelines and conformance. Consult platform integration notes when assessing a specific board.
+Suggested reading order: start with [Why SUF2?](why-suf2.md) for the motivation, then read the reusable threat model and trust chain. Continue with the SUF2 security design and specification, followed by the design guidelines and conformance catalogue. Consult platform integration notes when assessing a specific board.

@@ -284,7 +284,7 @@ Anti-rollback or security counters, timestamps as authorization, extensible tags
 
 ## 13. Open items
 
-The format uses the fixed manifest described here rather than wrapping an MCUboot image; the rationale is in [related-work.md](related-work.md#4-reuse-versus-a-new-format). Before freezing, review this layout independently and publish test vectors. The remaining implementation and integration work does not add format fields:
+The format uses the fixed manifest described here rather than wrapping an MCUboot image; the rationale is in [why-suf2.md](why-suf2.md#why-a-fixed-manifest). Before freezing, review this layout independently and publish test vectors. The remaining implementation and integration work does not add format fields:
 
 | Task | Notes |
 | --- | --- |
