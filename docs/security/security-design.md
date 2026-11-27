@@ -58,11 +58,12 @@ References are sections of [spec.md](../spec.md), [design-guidelines.md](design-
 | U5 | Partial | Fixed layout, checked arithmetic, bounded caller-owned state. Evidence depends on fuzzing, which is not yet planned in detail | DG 1 | T4–T6, T11; fuzzing plan (gap) |
 | U6 | Mitigated | Destination comes from local configuration; UF2 `targetAddr` must be zero | spec 3, 6; TC 2 | T5, S11 |
 | U7 | Partial | Fixed limits and session reset on link disconnect bound resource use. Someone with access to the update interface can still keep the device in update mode | spec 8; DG 5 | T9, T10, T12 |
-| U8 | Partial | Staged data is re-verified immediately before each destructive step, and the installed bytes are verified before the image is marked bootable. This narrows the window but cannot close it alone; keeping verified bytes stable until use is a platform requirement | DG 2; TC 2 (item 5) | B9 |
+| U8 | Partial | Staged data is re-verified immediately before destructive steps, and installed bytes are checked before being marked bootable. Keeping checked bytes stable through use is a platform requirement | spec 9; DG 2; TC 2 (item 5) | B9 |
 | U9 | Partial | The loader does not export keys or protected plaintext; protection against extraction through physical access or side channels is not guaranteed by the package profile | DG 8; TC 2 | B10; platform review |
 | U10 | Platform | Security configuration must be stored and protected as part of the platform policy; package metadata cannot change it | spec 6, 9; TC 2 | B12; platform review |
 | U11 | Partial | Generic error handling must not disclose secrets; timing and side-channel behavior require cryptographic-library and platform review | DG 7, 8 | side-channel review (gap) |
 | U12 | Platform | Normal update-mode requests and update-interface commands must not bypass package authorization or grant privileges | DG 5; TC 2 | B14; platform review |
+| U13 | Mitigated | Parsing is bounded, but package metadata remains untrusted. Local policy controls destinations; signature and image checks precede installation, and encrypted plaintext is authenticated before install | spec 6, 8, 9 | S1, T5, E1–E4 |
 
 ### Distribution and host
 
@@ -82,7 +83,7 @@ References are sections of [spec.md](../spec.md), [design-guidelines.md](design-
 | K1 | Accepted | Guidance on offline keys; several keys may be provisioned, but there is no revocation or rotation | DG 6; TC 6 | none |
 | K2 | External | Build and signing pipeline security | none | none |
 | K3 | Partial | Test keys are labelled, and production configurations must reject them | DG 6 | gap |
-| K4 | Accepted | One symmetric key per product or fleet segment limits, but does not prevent, extraction or exposure | DG 6 | platform key-extraction review |
+| K4 | Accepted | A key per product or fleet segment limits the blast radius compared with one fleet-wide key, but extraction exposes packages protected by that key across its devices. Hardware resistance to key extraction is a platform concern | DG 6 | platform key-extraction review |
 | K5 | Partial | Nonce generation is the producer's job: the host tool must use a fresh CSPRNG nonce per package with no user override. A device cannot detect reuse, so this is a host-tool requirement, not a bootloader check | spec 7; DG 6 | host-tool test (gap) |
 | K6 | Mitigated | Only provisioned keys are trusted; key IDs only select among them | spec 7 | S4–S6 |
 | K7 | Mitigated | Fixed algorithm suites; unknown suites are rejected; no fallback from encrypted to signed-only | spec 7, 9 | S7, E7, E8 |
@@ -95,7 +96,7 @@ References are sections of [spec.md](../spec.md), [design-guidelines.md](design-
 | --- | --- | --- | --- | --- |
 | X1 | Accepted | The update-mode request is one-shot and grants nothing | DG 5 | B6 |
 | X2 | Platform | Per-boot verification detects image changes. Without hardware boot protection the application can replace the loader, key or policy. A verified-boot design that restricts application flash access is not yet defined | spec 9; TC 2 | B3, B4; platform review |
-| X3 | Partial | The request only selects update mode; the platform must also ensure the interface cannot modify protected state or grant privileges | DG 5; TC 2 | B6, B7; platform review |
+| X3 | Partial | Application-facing subcase of U12: the request only selects update mode; the platform must ensure the application-to-loader interface cannot modify protected state or grant privileges | DG 5; TC 2 | B6, B7; platform review |
 
 ### Storage and physical access
 
@@ -103,7 +104,7 @@ References are sections of [spec.md](../spec.md), [design-guidelines.md](design-
 | --- | --- | --- | --- | --- |
 | P1 | Partial | The installed image and retained manifest are verified at every boot. Modification is detected, not prevented | spec 9; DG 4 | B3, B4 |
 | P2 | Platform | Requires a locked loader and anchored key | TC 2 (items 1, 2) | platform walkthrough |
-| P3 | Platform | Requires verified code to stay unchanged until it runs | TC 2 (item 5) | platform walkthrough |
+| P3 | Platform | Requires the code checked at boot to remain unchanged until and while it executes | TC 2 (item 5) | platform walkthrough |
 | P4 | Accepted | Encryption is transit-only | spec 12 | none |
 | P5 | Partial | Staging, journal and recovery mode. The old image may be lost; recovery mode is the guarantee | DG 3 | B1, B2, B5 |
 | P6 | Accepted | Verification failure enters recovery; watchdogs and health checks are the integrator's job | DG 3, 5 | none |
@@ -113,7 +114,7 @@ References are sections of [spec.md](../spec.md), [design-guidelines.md](design-
 | P10 | External | Correct trust-anchor and policy provisioning is outside SUF2 and must be established by the manufacturing process | TC 2; TC 6 | manufacturing/provisioning review |
 | P11 | Out of scope | v0.1 defines application packages, not bootloader-update authorization or rollback policy | spec 1, 12 | none |
 | P12 | Platform | Recovery interfaces must preserve the same authorization and protected-state guarantees as the normal update path | DG 3, 5; TC 2 | B13; platform walkthrough |
-| P13 | Partial | Transfer limits bound individual sessions but do not prevent flash wear from repeated writes; lifetime policy is platform- and deployment-specific | spec 8; DG 9 | endurance analysis (gap) |
+| P13 | Partial | Transfer limits bound individual sessions but do not prevent flash wear from repeated writes. v0.1 defines no anti-rollback counter; if a platform uses irreversible counters or fuses, its update policy must avoid exhausting them | spec 8, 12; DG 9 | endurance analysis (gap) |
 | P14 | Accepted | v0.1 has no anti-rollback mechanism for firmware or key-policy state; integrity checks do not establish freshness | spec 12 | B8 covers old signed firmware; authentic policy-state rollback has no test |
 
 ## Outcomes by platform class
