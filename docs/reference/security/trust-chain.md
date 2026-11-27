@@ -4,6 +4,8 @@ Secure boot controls which code a device starts, according to its protected boot
 
 This page describes a platform-independent, signature-based trust model for secure boot. It does not define a bootloader, and it does not claim that SUF2 supplies a hardware root of trust. How SUF2 maps onto these requirements is in [security-design.md](../../security/security-design.md); notes on specific boards are in [platform-integration.md](../../security/platform-integration.md).
 
+For the reset-to-handoff sequence, see [section 5 of the secure boot lifecycle](secure-boot-lifecycle.md#5-the-boot-lifecycle).
+
 A few terms used throughout:
 
 - **Attacker in scope:** an attacker with the capabilities a claim says it resists. Requirement 8 says to list those capabilities.

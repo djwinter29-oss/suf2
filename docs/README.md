@@ -8,7 +8,7 @@ These documents describe general security considerations. They are intended as s
 | --- | --- |
 | [reference/security/threat-model.md](reference/security/threat-model.md) | Stable, generic threat model for firmware update and secure boot: scope, trust boundaries, assets, attackers, objectives and threats |
 | [reference/security/trust-chain.md](reference/security/trust-chain.md) | Stable, generic secure-boot trust chain, requirements and assurance labels |
-| [reference/security/update-lifecycle.md](reference/security/update-lifecycle.md) | Stable, generic firmware-update decisions, interruption safety, boot eligibility and recovery promises |
+| [reference/security/secure-boot-lifecycle.md](reference/security/secure-boot-lifecycle.md) | Stable, generic firmware update and boot decisions, from candidate reception through application handoff |
 
 ## SUF2 project documentation
 
@@ -23,4 +23,4 @@ These documents describe the SUF2 profile, its design choices and its implementa
 | [conformance.md](conformance.md) | Test-case catalogue for implementations |
 | [related-work.md](related-work.md) | Existing projects, gap, and reuse-versus-new-format options |
 
-Suggested reading order: start with the reusable threat model, trust chain and update lifecycle, then read the SUF2 security design, specification, design guidelines and conformance. Consult platform integration notes when assessing a specific board.
+Suggested reading order: start with the reusable threat model and trust chain, then read the secure boot lifecycle, followed by the SUF2 security design, specification, design guidelines and conformance. Consult platform integration notes when assessing a specific board.

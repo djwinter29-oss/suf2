@@ -16,7 +16,7 @@ Not in v0.1: anti-rollback, key revocation and rotation, encryption at rest, mul
 
 ## Update lifecycle in SUF2 v0.1
 
-The generic [update lifecycle](../reference/security/update-lifecycle.md) separates authorization, installation and boot eligibility. SUF2 uses the staged approach described in [design guidelines sections 2-4](design-guidelines.md#2-stage-verify-then-install):
+The generic [secure boot lifecycle](../reference/security/secure-boot-lifecycle.md) separates authorization, installation and boot eligibility, then follows the boot decision through handoff. SUF2 uses the staged approach described in [design guidelines sections 2-4](design-guidelines.md#2-stage-verify-then-install):
 
 - Receive the complete candidate into staging, then check its signature, digests, local policy and, when encrypted, its GCM tag.
 - Re-verify staging before destructive writes. Install under a journal, treating journal fields as untrusted resumption input.

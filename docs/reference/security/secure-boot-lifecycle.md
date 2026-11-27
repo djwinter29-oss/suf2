@@ -1,12 +1,12 @@
-# Secure firmware-update lifecycle
+# Secure boot lifecycle
 
 A firmware signature binds an image to a signing key. The device's policy decides whether to accept it. Neither answer tells the device when to erase flash, what to do after power loss, or when an installed image may run.
 
-This document covers those decisions for a microcontroller running one application. Its storage may hold an active image, a candidate or multiple slots. The model is independent of package format, transport and flash layout. Staging, inactive slots and streaming installation can all fit, but they make different promises about preserving the old application.
+This document follows a microcontroller running one application through an update and the next boot. Storage may hold an active image, a candidate or multiple slots. The model is independent of package format, transport and flash layout. Staging, inactive slots and streaming installation can all fit, but they make different promises about preserving the old application.
 
-The [threat model](threat-model.md) describes the attacks and failures to consider. The [trust chain](trust-chain.md) defines the protection needed for a verified-boot claim. SUF2's choices are mapped in [security-design.md](../../security/security-design.md#update-lifecycle-in-suf2-v01); this page does not require SUF2 or its cryptographic suites.
+The [threat model](threat-model.md) describes the attacks and failures to consider. The [trust chain](trust-chain.md) defines the protection needed for a verified-boot claim. Sections 1–4 cover updating an image; [section 5](#5-the-boot-lifecycle) follows the boot decision from reset to handoff. SUF2's choices are mapped in [security-design.md](../../security/security-design.md#update-lifecycle-in-suf2-v01); this generic model does not require SUF2 or its cryptographic suites.
 
-## 1. The decisions that matter
+## 1. Update decisions and terms
 
 The terms below describe security decisions, not necessarily separate storage areas or program states.
 
@@ -84,7 +84,7 @@ A reset can happen at any point, not just on the dashed arrows. Recovery validat
 
 An inactive-slot design would instead leave the old image eligible while the new slot stays ineligible, so step 3 could fall back to the old image if it still satisfies current policy.
 
-## 2. Rules across the lifecycle
+## 2. Update safety rules
 
 An integration using this model MUST meet these requirements for the attacker capabilities it claims to resist.
 
@@ -100,7 +100,7 @@ An integration using this model MUST meet these requirements for the attacker ca
 
 Encryption is optional in this generic model. When used, unauthenticated decrypted output must not become executable or be exposed as trusted plaintext. A failed encrypted check must not fall back to a less restrictive acceptance mode.
 
-## 3. From reception to boot
+## 3. From reception to boot eligibility
 
 | Decision | What must be established | If it cannot be established |
 | --- | --- | --- |
@@ -129,7 +129,71 @@ Reception and installation may overlap. Once destination preparation begins, app
 
 Resumption must also keep updates separate. A new package cannot inherit another candidate's progress or authorization. If local policy changes between interruption and restart, the resumed candidate must satisfy the policy now in force. Where policy or version rollback resistance is claimed, integrity alone is insufficient: the design must also establish freshness.
 
-## 5. State the availability promise
+## 5. The boot lifecycle
+
+The update process above describes how an image becomes eligible to boot. This section follows the device from reset through image selection, required checks and handoff. It describes the sequence, not a particular bootloader or storage layout.
+
+### From reset to handoff
+
+```mermaid
+flowchart TD
+    Reset(["Reset"])
+    Root["Enter the trusted boot path<br/>root of trust"]
+    State["Read boot state and local policy<br/>treat stored state as untrusted input"]
+    Select["Select an image or boot path<br/>per protected local policy"]
+    Check["Perform the checks required<br/>by the boot policy and assurance claim"]
+    Handoff["Keep checked bytes unchanged<br/>and hand off"]
+    Run(["Application runs"])
+    More{"Another permitted<br/>image or path?"}
+    Recovery["Trusted recovery"]
+    Stop["Stop safely<br/>do not run unchecked code"]
+
+    Reset --> Root --> State --> Select --> Check
+    Check -->|checks pass| Handoff --> Run
+    Check -->|check fails| More
+    More -->|yes| Select
+    More -->|no| Recovery
+    Recovery -->|no authorized way forward| Stop
+    Recovery -->|authorized update installed; reboot| Reset
+
+    classDef trusted fill:#dbe9f6,stroke:#1f4e79,color:#0b2545
+    classDef state fill:#fff4ce,stroke:#b8860b,color:#3d2c00
+    classDef success fill:#d8f0d8,stroke:#2e7d32,color:#123d14
+    classDef failure fill:#fde2e1,stroke:#c62828,color:#5c1010
+    class Root,Check trusted
+    class State,Select,Recovery state
+    class Handoff,Run success
+    class More,Stop failure
+```
+
+The diagram is a logical sequence, not a promise that every device has multiple images or a recovery installer. If no other permitted path exists, stopping safely is a valid outcome.
+
+### What each step establishes
+
+| Step | Decision | If it cannot be established |
+| --- | --- | --- |
+| Start | A protected root of trust begins the boot path. Later boot stages are trusted only through the chain defined by the platform. | Do not continue into an untrusted stage. Use only a separately authorized path, if one exists. |
+| Read state | Slot selection, eligibility records, recovery requests and other saved data are checked before use. They help describe device state; they do not grant permission to run code. | Reject or safely resolve invalid or ambiguous state. Never treat a progress or success flag alone as authorization. |
+| Select | Protected local policy determines which image or alternate boot path may be tried. Package fields, application requests and recovery buttons cannot grant themselves authority. | Choose another path only if policy permits it; otherwise recover or stop. |
+| Check | Apply the checks required by the product's stated boot policy and assurance claim. A verified-boot claim requires verification on every boot path reachable to the attacker in scope; narrower claims may provide less. | Do not start the image or stage that failed. Any fallback must meet the same policy for its path. |
+| Handoff | The bytes checked are the bytes the processor starts. | If the design cannot protect that boundary, it cannot claim verified boot. |
+| Continue or stop | Recovery remains trusted and follows the same authorization policy. | If no authorized path forward exists, stop without running unchecked code. |
+
+Boot eligibility from an update records that installation checks completed; it does not replace the checks required at boot. In particular, it does not by itself establish verified boot. See the [trust-chain requirements](trust-chain.md#2-requirements-for-a-verified-boot-claim).
+
+### Failure, fallback and recovery
+
+A failed check is a rejection of that image or path, not permission to relax policy. The device may try another image or path only when local policy already allows it. It must not bypass checks, accept unsigned recovery code or use an update request as authorization.
+
+Trusted recovery may install or receive a new candidate, but that candidate follows the update process in sections 1–4: it must be authorized, installed safely and made eligible before it can be selected to run. Recovery does not promise that another image is available or that installation will succeed.
+
+### Boundaries
+
+The boot portion of this document ends at the handoff to the application. It does not establish that the application is healthy, safe at runtime, protected against rollback or able to recover from every failure. Those are separate properties that need their own policy and evidence.
+
+For a platform integration, document the boot stages, selection policy, checks on each reachable path, behavior after failures, recovery authority and the protection from verification through handoff. The trust-chain document describes the evidence needed for a verified-boot claim.
+
+## 6. State the availability promise
 
 A failed update must never make an unchecked image runnable; that is the baseline. If no eligible image remains, the device may stop application execution or enter trusted recovery; this safe stop alone does not promise that another image can be installed. Integrations must state which additional availability guarantees they provide and under what conditions. Both can apply.
 
@@ -140,7 +204,7 @@ A failed update must never make an unchecked image runnable; that is the baselin
 
 Recovery is not unlimited availability. A hostile transport, exhausted flash, lost authorization keys or unavailable power can still prevent recovery. Bootloader updates, key transitions, anti-rollback and application health confirmation need additional policies; this lifecycle does not supply them.
 
-## 6. Evidence to record
+## 7. Evidence to record
 
 For each integration, document:
 
