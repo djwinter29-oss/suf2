@@ -1,6 +1,6 @@
 # SUF2 security design
 
-This page explains what SUF2 v0.1 does about each threat in the [threat model](threat-model.md), and what it deliberately leaves to the platform, to the integrator, or to a future version. The wire format is in [spec.md](../spec.md), platform requirements are in [trust-chain.md](trust-chain.md), implementation guidance is in [design-guidelines.md](design-guidelines.md), and planned tests are in [conformance.md](../conformance.md).
+This page maps each threat in the [threat model](threat-model.md) to SUF2 v0.1's design, including what it deliberately leaves to the platform, integrator or a future version. The generic boot trust model is in [trust-chain.md](trust-chain.md); preliminary board notes are in [platform-integration.md](platform-integration.md). The wire format is in [spec.md](../spec.md), implementation guidance is in [design-guidelines.md](design-guidelines.md), and planned tests are in [conformance.md](../conformance.md).
 
 ## What SUF2 v0.1 covers
 
@@ -10,7 +10,7 @@ SUF2 is a firmware package format and bootloader verification profile. Version 0
 - **Optional transit encryption:** AES-256-GCM protects image contents on the way to the device. Installed firmware is stored in plaintext.
 - **UF2-block transport:** packages are carried as UF2 blocks. An integration may deliver those blocks over USB mass storage, serial, network or radio; the delivery protocol itself is not specified.
 - **Per-boot verification:** the bootloader keeps the signed manifest and re-verifies the installed image against it at every boot.
-- **Root of trust from the platform:** SUF2 does not protect the bootloader or trust anchor itself; the platform must (see [trust-chain.md](trust-chain.md)).
+- **Root of trust from the platform:** SUF2 does not protect the bootloader or trust anchor itself; the platform must satisfy the generic requirements in [trust-chain.md](trust-chain.md).
 
 Not in v0.1: anti-rollback, key revocation and rotation, encryption at rest, multi-image updates, runtime isolation of the application, provisioning of the trust anchor, and authenticated bootloader updates.
 
@@ -45,7 +45,7 @@ Treatment values:
 - **Accepted:** known and not addressed in v0.1.
 - **External:** belongs to systems outside the bootloader, such as the signing pipeline or delivery service.
 
-References are sections of [spec.md](../spec.md), [design-guidelines.md](design-guidelines.md) (DG) or [trust-chain.md](trust-chain.md) (TC), and cases in [conformance.md](../conformance.md).
+References are sections of [spec.md](../spec.md), [design-guidelines.md](design-guidelines.md) (DG) or the generic [trust-chain requirements](trust-chain.md#2-requirements-for-a-verified-boot-claim) (TC), and cases in [conformance.md](../conformance.md).
 
 ### Update input
 
@@ -58,7 +58,7 @@ References are sections of [spec.md](../spec.md), [design-guidelines.md](design-
 | U5 | Partial | Fixed layout, checked arithmetic, bounded caller-owned state. Evidence depends on fuzzing, which is not yet planned in detail | DG 1 | T4–T6, T11; fuzzing plan (gap) |
 | U6 | Mitigated | Destination comes from local configuration; UF2 `targetAddr` must be zero | spec 3, 6; TC 2 | T5, S11 |
 | U7 | Partial | Fixed limits and session reset on link disconnect bound resource use. Someone with access to the update interface can still keep the device in update mode | spec 8; DG 5 | T9, T10, T12 |
-| U8 | Partial | Staged data is re-verified immediately before destructive steps, and installed bytes are checked before being marked bootable. Keeping checked bytes stable through use is a platform requirement | spec 9; DG 2; TC 2 (item 5) | B9 |
+| U8 | Partial | Staged data is re-verified immediately before destructive writes, then installed bytes are checked before being marked bootable. On each boot, the image must stay unchanged from verification to handoff | spec 9; DG 2; TC 2 (item 5) | B9 |
 | U9 | Partial | The loader does not export keys or protected plaintext; protection against extraction through physical access or side channels is not guaranteed by the package profile | DG 8; TC 2 | B10; platform review |
 | U10 | Platform | Security configuration must be stored and protected as part of the platform policy; package metadata cannot change it | spec 6, 9; TC 2 | B12; platform review |
 | U11 | Partial | Generic error handling must not disclose secrets; timing and side-channel behavior require cryptographic-library and platform review | DG 7, 8 | side-channel review (gap) |
@@ -103,26 +103,26 @@ References are sections of [spec.md](../spec.md), [design-guidelines.md](design-
 | ID | Treatment | How | Reference | Test |
 | --- | --- | --- | --- | --- |
 | P1 | Partial | The installed image and retained manifest are verified at every boot. Modification is detected, not prevented | spec 9; DG 4 | B3, B4 |
-| P2 | Platform | Requires a locked loader and anchored key | TC 2 (items 1, 2) | platform walkthrough |
-| P3 | Platform | Requires the code checked at boot to remain unchanged until and while it executes | TC 2 (item 5) | platform walkthrough |
+| P2 | Platform | Requires a trusted root of trust, plus a trust anchor and boot policy protected against the stated attacker; the verifier may be immutable or authenticated by an earlier trusted stage | TC 2 (items 1, 2) | platform walkthrough |
+| P3 | Platform | Checked code must stay unchanged until handoff (TC 2 item 5). Keeping it unchanged while it runs is a separate runtime protection the platform must provide (TC 4) | TC 2 (item 5); TC 4 | platform walkthrough |
 | P4 | Accepted | Encryption is transit-only | spec 12 | none |
 | P5 | Partial | Staging, journal and recovery mode. The old image may be lost; recovery mode is the guarantee | DG 3 | B1, B2, B5 |
 | P6 | Accepted | Verification failure enters recovery; watchdogs and health checks are the integrator's job | DG 3, 5 | none |
 | P7 | Accepted | Hardware attacks are outside the v0.1 profile | none | none |
 | P8 | Mitigated | The journal is treated as untrusted recovery input: its fields are validated, staging is re-authenticated before resuming, and journal state never marks an image bootable or skips boot verification | DG 3 | B2, B11 |
-| P9 | Platform | Debug and alternate boot paths must be disabled or documented as bypasses | TC 2 (item 3) | platform walkthrough |
+| P9 | Platform | Debug and alternate boot paths must provide equivalent verification or be disabled against the stated attacker; a reachable bypass prevents a verified-boot claim | TC 2 (item 3); TC 3 | platform walkthrough |
 | P10 | External | Correct trust-anchor and policy provisioning is outside SUF2 and must be established by the manufacturing process | TC 2; TC 6 | manufacturing/provisioning review |
 | P11 | Out of scope | v0.1 defines application packages, not bootloader-update authorization or rollback policy | spec 1, 12 | none |
-| P12 | Platform | Recovery interfaces must preserve the same authorization and protected-state guarantees as the normal update path | DG 3, 5; TC 2 | B13; platform walkthrough |
+| P12 | Platform | Recovery interfaces must preserve equivalent authorization and protected-state guarantees under protected policy; they may use a distinct verifier or key if explicitly authorized | DG 3, 5; TC 2 (items 3, 7) | B13; platform walkthrough |
 | P13 | Partial | Transfer limits bound individual sessions but do not prevent flash wear from repeated writes. v0.1 defines no anti-rollback counter; if a platform uses irreversible counters or fuses, its update policy must avoid exhausting them | spec 8, 12; DG 9 | endurance analysis (gap) |
 | P14 | Accepted | v0.1 has no anti-rollback mechanism for firmware or key-policy state; integrity checks do not establish freshness | spec 12 | B8 covers old signed firmware; authentic policy-state rollback has no test |
 
 ## Outcomes by platform class
 
-SUF2 does not provide a hardware root of trust, so the outcome depends on the platform. The classes are defined in [trust-chain.md](trust-chain.md#3-claim-levels):
+SUF2 does not provide a hardware root of trust, so the outcome depends on the platform. The classes are defined in [trust-chain.md](trust-chain.md#3-assurance-labels):
 
-- **Authenticated update:** no hardware-protected boot. Anyone who can write flash can replace the loader and key.
-- **Verified boot:** the hardware locks the loader and key, and no other boot path starts unsigned code.
+- **Authenticated update:** the update path accepts packages authorized by a trusted key and local policy. This does not promise per-boot image checks or equivalent guarantees across other boot paths.
+- **Verified boot:** every boot path reachable to the stated attacker ends at a trusted verifier, which checks the installed image against protected local policy on each boot and ensures the checked bytes are the bytes executed.
 
 "Holds" means the objective is intended to hold if the platform requirements are met. Nothing has been tested yet.
 
@@ -132,8 +132,10 @@ SUF2 does not provide a hardware root of trust, so the outcome depends on the pl
 | B. File tampering | Holds | Holds |
 | B. Replay of an old signed file | **Does not hold** (H2) | **Does not hold** (H2) |
 | C. Compromised host | Holds | Holds |
-| D. Compromised application | **Does not hold:** it can overwrite the loader, key or policy (X2); runtime containment is not provided | Loader and key protected by hardware; persistent firmware and update-state changes detected at boot; runtime behavior is not contained |
-| E. Physical access | **Does not hold:** loader and key can be replaced (P2) | Depends on correct hardware configuration; **firmware stays readable** (P4); hardware attacks out of scope (P7) |
+| D. Compromised application | **Does not hold:** it can overwrite the loader, key or policy (X2); runtime containment is not provided | Loader, trust anchor and policy are protected against this attacker; persistent firmware and update-state changes are checked at boot; runtime behavior is not contained |
+| PH1. Physical interruption/access | Holds for authenticity and integrity; availability may be affected | Same |
+| PH2. Flash or debug access | **Does not hold** while the attacker can effectively write the loader/key or use an alternate boot path (P2, P9) | No claim against effective flash/debug access unless hardware prevents it and all alternate paths preserve verification; in that configuration, assess the attacker against the capabilities that remain. Firmware may still be readable (P4) |
+| PH3. Laboratory attacker | No resistance to probing or fault injection is claimed (P7) | Same; requires separate hardware evidence |
 | F. Signing compromise | **Does not hold** (K1, K2) | **Does not hold** |
 
 ## Assumptions
