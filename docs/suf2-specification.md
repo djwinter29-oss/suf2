@@ -233,7 +233,12 @@ A receiver MUST use fixed local limits for image size, block count and staging c
 
 Every transition into failed MUST report its cause to the host through the receiver's documented status or error mechanism. A session that fails before installation MUST leave the installed application unchanged.
 
-A local reset is a link disconnect, re-enumeration, reboot, timeout or local command. It discards a collecting or failed session. Nothing in a block can reset a session, and a timeout or file close MUST NOT establish completeness or authorize installation. Installation already under way follows the platform's interruption rules (section 10). A receiver MAY re-enumerate after reporting a failure so the user can copy the file again.
+A local reset is a link disconnect, re-enumeration, reboot, timeout or local command. Nothing in a block can cause one. A timeout or file close MUST NOT establish completeness or authorize installation.
+
+- **Before installation starts**, a reset discards a collecting, complete or failed session, including any verification in progress. A discarded session MUST NOT authorize installation. The same package may be received again in a new session, where every check applies again.
+- **Once installation has started**, reset or power loss follows the platform's interruption rules (section 10).
+
+A receiver MAY re-enumerate after reporting a failure so the user can copy the file again.
 
 ## 9. Verification
 

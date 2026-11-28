@@ -1,6 +1,6 @@
 # Why SUF2?
 
-UF2 makes firmware easy to copy onto many microcontrollers. It does not say whether an update was approved by the device maker. SUF2 is a draft profile for adding that check to a UF2 workflow.
+UF2 makes firmware easy to copy onto many microcontrollers, often by dragging a file onto a device that appears as a USB drive. A project may want to keep that update process while ensuring that only firmware approved by its maker can run. SUF2 is a draft profile for adding that check to UF2.
 
 ## When SUF2 may fit
 
@@ -10,11 +10,13 @@ If a project already uses a secure-update system that meets its needs, changing 
 
 ## What SUF2 adds
 
-A SUF2 package includes a signed manifest: a fixed-size description of the firmware, including its cryptographic hashes, product identity and intended execution address. The device checks the signature using a key it already trusts, then checks the firmware against the signed hash. Authentication is required; encryption is not.
+A SUF2 package includes a signed manifest: a fixed-size description of the firmware, including its hashes, product identity and intended execution address. The device checks the signature with a key it already trusts, then checks the firmware against the signed digest. Authentication is required; encryption is optional. A SUF2 receiver must not fall back to installing ordinary unsigned UF2 firmware.
 
-Optional AES-256-GCM encryption hides firmware contents while the package is in transit. The installed image is plaintext. The manifest remains visible, including the plaintext hash, which can be compared against a known or guessed image.
+Before every application start, the loader verifies the retained manifest's signature and checks that the installed firmware's hash matches the hash recorded in the manifest. The platform remains responsible for protecting the loader and trusted key, and for ensuring the bytes checked are the bytes that run.
 
-The profile also defines receiver behavior for common UF2 transfer conditions: blocks may arrive out of order or more than once, and unrelated blocks may be mixed into a transfer. This gives package producers and compatible receivers shared rules to follow.
+Optional AES-256-GCM encryption hides the firmware contents in transit; the installed image is plaintext. The manifest remains visible, including its plaintext hash, which can confirm a known or guessed image.
+
+The receiver rules cover blocks arriving out of order or more than once, as well as unrelated blocks mixed into a transfer.
 
 ## Why use UF2?
 
@@ -30,21 +32,20 @@ These projects solve related but different parts of firmware delivery and boot s
 | --- | --- | --- |
 | [UF2](https://github.com/microsoft/uf2) | The block format and file-based update workflow. | SUF2 uses UF2 blocks and adds a signed package format and receiver rules. |
 | [TinyUF2](https://github.com/adafruit/tinyuf2) | UF2 bootloader workflows for supported microcontrollers. | TinyUF2 addresses the device-side UF2 workflow. A device would need SUF2-aware verification to accept SUF2 packages securely. |
-| [MCUboot](https://github.com/mcu-tools/mcuboot) | A secure-boot and update framework with its own image format and host tools. | MCUboot is a broader boot/update framework. SUF2 instead focuses on authenticated packages carried as UF2; projects already using MCUboot should weigh the value of keeping their existing format and tooling. |
-| [wolfBoot](https://github.com/wolfSSL/wolfBoot) | A secure-boot and firmware-update solution for supported platforms. | Like MCUboot, it addresses boot and update behavior. SUF2's scope is the UF2 package and receiver contract, not a replacement bootloader. |
+| [MCUboot](https://github.com/mcu-tools/mcuboot) | A secure-boot and update framework with its own image format and host tools. | MCUboot defines an image format within its boot/update framework; SUF2 defines how authenticated firmware is packaged and received over UF2. |
+| [wolfBoot](https://github.com/wolfSSL/wolfBoot) | A secure-boot and firmware-update solution for supported platforms. | wolfBoot supplies a bootloader and update framework; SUF2 defines the UF2 package and required checks, leaving bootloader implementation and recovery to the platform. |
 | [Raspberry Pi Pico encrypted-bootloader example](https://github.com/raspberrypi/pico-examples/tree/master/bootloaders/encrypted) | A signed and encrypted UF2 example for RP2350 using the chip's ROM secure-boot facilities. | It demonstrates a platform-specific approach. SUF2 aims to describe a package profile that can be used across platforms, with boot enforcement still supplied by each platform. |
 
-SUF2's intended contribution is this shared UF2 package-and-receiver contract: required signature verification, optional encryption in transit and defined handling of transfer behavior. It does not claim that these capabilities are unique.
+SUF2 defines a UF2 package, handling for out-of-order, duplicate and mixed blocks, and checks required before the application starts. It is a package and device-behavior profile, not a replacement bootloader.
 
 ## Why a fixed manifest?
 
-The v0.1 draft supports one image and fixes the manifest at 256 bytes so it fits in one UF2 block. It uses one signature scheme and fixed algorithms, rather than allowing each package to select them. This keeps the format constrained, but it does not make the package smaller: each 512-byte UF2 block carries 256 bytes of image content. A large package is therefore about twice the image size, plus one manifest block and padding.
+SUF2 uses its own manifest rather than wrapping an existing signed-image format such as MCUboot's. MCUboot is a credible alternative; a UF2 profile could carry its image format and reuse its tools. SUF2 instead defines a dedicated manifest and receiver contract for the UF2 workflow. The manifest is 256 bytes—the same size as an image chunk—so the complete manifest fits in one UF2 block. v0.1 allows no optional metadata extensions. The trade-off is a dedicated fixed layout rather than reuse of an existing image format and its tooling.
 
-The trade-off is a simpler, narrower package contract in exchange for a new format and its own producer and receiver support. v0.1 has no multi-image support or algorithm negotiation; changing the layout or algorithms requires a new format version. Wrapping an existing image format could reuse its tooling, while still needing rules for carrying and receiving it over UF2. Projects with a working secure-update format may reasonably prefer to keep it.
+The cost is limited flexibility: v0.1 supports one image and a fixed set of algorithms, and requires its own producer and receiver tooling. Each image block carries 256 bytes of image in a 512-byte UF2 block, so a large package is about twice the image size, plus a manifest block and padding. Changing the layout or algorithms requires a new format version.
 
 ## Limits
 
-- SUF2 uses established cryptographic algorithms; it does not introduce a new one.
 - Encryption protects image contents in transit, not while stored on the device.
 - A valid signature does not prevent replay of an older signed image. v0.1 has no anti-rollback counter.
 - Package authentication is not the same as secure boot. The platform must protect the loader and trusted key, enforce its own policy, and ensure the bytes checked are the bytes that run.
