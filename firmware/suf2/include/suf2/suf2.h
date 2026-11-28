@@ -5,9 +5,9 @@
  * provides storage callbacks. Implements sections 3-9 of
  * docs/spec/suf2-specification.md for format version 1.
  *
- * Encrypted packages (flags bit 0) are parsed and their structure, signature
- * and stored digest are checked, but this core has no AES-GCM decryptor yet:
- * they are rejected with SUF2_E_NO_DECRYPTION_KEY after those checks.
+ * Encrypted packages require a provisioned AES-256 key and an AES-GCM port.
+ * Candidate verification authenticates ciphertext and checks the decrypted
+ * digest without exposing plaintext.
  */
 #ifndef SUF2_SUF2_H
 #define SUF2_SUF2_H
@@ -27,6 +27,7 @@ extern "C" {
 #define SUF2_DIGEST_SIZE 32u
 #define SUF2_PUBLIC_KEY_SIZE 65u /* 0x04 || X || Y */
 #define SUF2_SIGNATURE_SIZE 64u  /* r || s */
+#define SUF2_AES_KEY_SIZE 32u
 
 #define SUF2_UF2_MAGIC_START0 0x0A324655u
 #define SUF2_UF2_MAGIC_START1 0x9E5D5157u
@@ -90,6 +91,7 @@ typedef enum {
     SUF2_E_NO_DECRYPTION_KEY,
     SUF2_E_PLAINTEXT_DIGEST,
     SUF2_E_CRYPTO_BACKEND,        /* library failure or invalid provisioned key */
+    SUF2_E_GCM_TAG,
 
     /* Storage and API use */
     SUF2_E_STORAGE = 90,
@@ -139,13 +141,29 @@ typedef struct {
 } suf2_signing_key_t;
 
 typedef struct {
+    uint8_t key_id[SUF2_ID_SIZE]; /* opaque provisioned label, not a key hash */
+    uint8_t key[SUF2_AES_KEY_SIZE];
+} suf2_decryption_key_t;
+
+typedef struct {
     uint8_t product_id[SUF2_ID_SIZE];
     uint32_t execution_base;    /* the only load address this device accepts */
     uint32_t max_image_size;    /* bytes */
     bool require_encryption;
     const suf2_signing_key_t *keys;
     size_t key_count;
+    const suf2_decryption_key_t *decryption_keys;
+    size_t decryption_key_count;
 } suf2_policy_t;
+
+/* Select a provisioned AES key and construct the exact SUF2 AAD. The context
+ * is defined in suf2_crypto.h. Verify staging before installing any plaintext;
+ * keep ciphertext immutable and prevent boot until installation is committed.
+ */
+struct suf2_gcm;
+suf2_status_t suf2_decrypt_start(struct suf2_gcm *ctx,
+                                 const uint8_t manifest[SUF2_MANIFEST_SIZE],
+                                 const suf2_policy_t *policy);
 
 /* ---- Receiver session (section 8) -------------------------------------- */
 

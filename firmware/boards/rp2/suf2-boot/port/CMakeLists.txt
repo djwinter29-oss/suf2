@@ -6,7 +6,7 @@ if (NOT EXISTS "${SUF2_MBEDTLS_DIR}/library/ecdsa.c")
 endif()
 
 set(_mbedtls_sources asn1parse.c asn1write.c bignum.c bignum_core.c constant_time.c
-    ecdsa.c ecp.c ecp_curves.c platform_util.c sha256.c)
+    ecdsa.c ecp.c ecp_curves.c platform_util.c sha256.c aes.c cipher.c cipher_wrap.c gcm.c)
 list(TRANSFORM _mbedtls_sources PREPEND "${SUF2_MBEDTLS_DIR}/library/")
 add_library(suf2_mbedtls STATIC ${_mbedtls_sources})
 target_include_directories(suf2_mbedtls

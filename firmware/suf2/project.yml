@@ -2,7 +2,7 @@
 :project:
   :name: SUF2 unit tests
   :which_ceedling: gem
-  :ceedling_version: 1.1.9
+  :ceedling_version: '?'
   :use_mocks: true
   :use_test_preprocessor: :mocks
   :build_root: ../../build/ceedling-suf2

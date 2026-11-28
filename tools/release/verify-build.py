@@ -11,6 +11,8 @@ Checks that:
 - blink.suf2, if present and a native harness is given, passes the same
   receive, verify and boot checks the loader runs, using the board's product
   ID, application address and slot size.
+- ESP32-S3 checks native image sizes, provisioning files, fixed partitions,
+  shared key tables and preservation of the complete signed application BIN.
 """
 
 from __future__ import annotations

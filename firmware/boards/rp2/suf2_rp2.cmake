@@ -82,7 +82,7 @@ set(SUF2_PRODUCT_ID_C "{${SUF2_PRODUCT_ID_C}}")
 
 # ---- Trusted keys ----------------------------------------------------------
 
-set(_shared "${SUF2_REPO_DIR}/host/shared")
+set(_shared "${SUF2_REPO_DIR}/test-keys")
 set(_keys ${SUF2_TRUSTED_KEYS})
 if (SUF2_PRODUCTION)
     if (NOT _keys)
@@ -98,14 +98,14 @@ elseif (NOT _keys)
     else()
         set(_keys "${_shared}/examples/signing-public.pem")
         message(WARNING "SUF2: trusting the example public key, whose private key is not published. "
-            "Nothing can be signed for this loader. Run host/shared/generate-test-keys.py and reconfigure.")
+            "Nothing can be signed for this loader. Run test-keys/generate-test-keys.py and reconfigure.")
     endif()
 endif()
 
 set(SUF2_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
 set(_keys_args)
 if (SUF2_PRODUCTION)
-    list(APPEND _keys_args --production --forbid-dir "${_shared}")
+    list(APPEND _keys_args --production --forbid-dir "${_shared}" --forbid-dir "${SUF2_REPO_DIR}/host/shared")
 endif()
 execute_process(
     COMMAND ${Python3_EXECUTABLE} "${SUF2_REPO_DIR}/tools/firmware/suf2_keys_header.py"
@@ -116,6 +116,7 @@ if (NOT _rc EQUAL 0)
 endif()
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${SUF2_REPO_DIR}/tools/firmware/suf2_keys_header.py" ${_keys})
+include("${SUF2_REPO_DIR}/tools/firmware/suf2_decryption_keys.cmake")
 
 configure_file("${SUF2_RP2_DIR}/suf2-boot/suf2_board_config.h.in" "${SUF2_GENERATED_DIR}/suf2_board_config.h")
 
@@ -155,6 +156,7 @@ function(suf2_rp2_add_loader TARGET)
     target_compile_options(${TARGET} PRIVATE -Wall -Wextra)
     # The status files only print integers.
     target_compile_definitions(${TARGET} PRIVATE
+        PICO_STACK_SIZE=0x1000
         PICO_PRINTF_SUPPORT_FLOAT=0 PICO_PRINTF_SUPPORT_EXPONENTIAL=0 PICO_PRINTF_SUPPORT_LONG_LONG=0)
     pico_enable_stdio_uart(${TARGET} 0)
     pico_enable_stdio_usb(${TARGET} 0)

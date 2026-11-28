@@ -12,7 +12,7 @@ Draft documents are in [docs/](docs/README.md): threat model, trust chain, speci
 browser dashboard deployable to GitHub Pages. Each converts BIN, HEX or ELF
 firmware into a signed SUF2 package. Browser processing is local; firmware and
 keys are not sent to a server. These first prototypes support signing only,
-not optional encryption. [Shared examples](host/shared/README.md) document
+not optional encryption. [Test keys](test-keys/README.md) document
 PEM public keys and certificates and generate private test keys locally.
 
 ## Firmware
@@ -21,6 +21,8 @@ PEM public keys and certificates and generate private test keys locally.
 virtual drive, with RP2040/RP2350 Pico SDK loaders and an experimental
 [ESP32-S3 ESP-IDF integration](firmware/boards/esp32s3/README.md). Crypto and hardware
 ports are supplied by each integration. Libraries are git submodules in `firmware/lib`.
+The receiver supports optional AES-256-GCM decryption with provisioned keys;
+installed firmware remains plaintext.
 
 ## Goals, in priority order
 

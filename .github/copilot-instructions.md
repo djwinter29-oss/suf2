@@ -28,8 +28,9 @@ behavior. Update related documents when behavior changes.
 - `host/python/`: Python CLI.
 - `host/dotnet/`: .NET CLI; no UI.
 - `host/dashboard/`: static browser dashboard.
-- `host/shared/`: shared key-format examples, local test-key generator, and
-  cross-producer tests.
+- `host/shared/`: cross-producer contract tests.
+- `test-keys/`: public signing examples, local test-key generator, and ignored
+  signing/AES secrets in `local/`.
 - `firmware/suf2/`: portable C verifier, staged installer/journal, virtual FAT16
   drive, and tests. `include/suf2/` defines their APIs, storage callbacks, and
   crypto-port contract. Keep the
@@ -80,8 +81,10 @@ outputs belong in ignored `build/`.
   check and single-authorized-partition IDF fallback list.
 - Keep firmware and private-key processing local in the dashboard. Do not add
   remote scripts, analytics, key persistence, or server uploads.
-- Generate development keys into ignored `host/shared/local/`. Never commit
-  private keys or ship test-key-trusting loaders. Certificates are example
+- Generate development keys into ignored `test-keys/local/`. Never commit
+  private signing keys, AES keys, or generated secret headers, or ship
+  test-key-trusting loaders. Do not publish binaries containing AES secrets;
+  CI artifact builds explicitly disable `SUF2_DECRYPTION_KEYS`. Certificates are example
   containers, not an implemented CA authorization mechanism.
 - Platform enforcement is separate from package authentication. RP2040 lacks
   hardware secure boot. Do not automate irreversible RP2350 OTP/security
@@ -118,7 +121,7 @@ PYTHONPATH=host/python/src python3 -m unittest discover -s host/shared/tests -v
 # Full host checks (inspect output: missing dotnet/npm may be skipped)
 tools/host/run_tests.sh
 
-# Ceedling unit tests (install the firmware/suf2 Gemfile bundle first)
+# Ceedling unit tests (gem install ceedling --no-document first)
 tools/firmware/run_unit_tests.sh
 
 # Ceedling, native verifier and loader simulation tests
@@ -139,7 +142,8 @@ validation. Documentation-only changes need no build unless they change a
 testable contract.
 
 Portable unit tests live in `firmware/suf2/tests/unit/` and use Ceedling,
-Unity and CMock. Mock the crypto contract for isolated tests; retain native
+Unity and CMock. Use the latest Ceedling release without Gemfile/Bundler or a
+version pin; CI installs it on each run. Mock the crypto contract for isolated tests; retain native
 tests with real crypto and the board simulation for integration evidence.
 Keep generated mocks and reports in ignored `build/ceedling-suf2/`.
 

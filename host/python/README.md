@@ -5,7 +5,7 @@ Requires Python 3.10+ and the `cryptography` library. From this folder:
 ```sh
 python -m pip install .
 suf2 pack --input firmware.bin --output firmware.suf2 \
-  --key ../shared/local/signing-private.pem \
+  --key ../../test-keys/local/signing-private.pem \
   --product-id 00112233445566778899aabbccddeeff --base 0x10010000
 ```
 
@@ -23,7 +23,7 @@ Gaps are rejected unless both `--end` (exclusive) and `--fill` (0..255) are expl
 
 ```sh
 suf2 pack --input firmware.hex --output firmware.suf2 \
-  --key ../shared/local/signing-private.pem \
+  --key ../../test-keys/local/signing-private.pem \
   --product-id 00112233445566778899aabbccddeeff \
   --base 0x10010000 --end 0x10011000 --fill 0xff
 ```
@@ -32,7 +32,7 @@ Fill bytes become part of the signed image and are installed. Check the range
 against your loader's flash policy before packing.
 Signing accepts unencrypted PKCS#8 PEM P-256 private keys only.
 This prototype is **signed-only**, not a complete producer for the draft's optional encryption mode.
-See the [shared host contract](../README.md) and [test-key instructions](../shared/README.md).
+See the [shared host contract](../README.md) and [test-key instructions](../../test-keys/README.md).
 
 Tests without installing the package:
 

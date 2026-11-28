@@ -6,6 +6,7 @@ host Python packer to make sure the firmware accepts its output.
 """
 
 import hashlib
+import base64
 import json
 import os
 import struct
@@ -13,9 +14,11 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, utils
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 HARNESS = sys.argv.pop(1) if len(sys.argv) > 1 else os.environ.get("SUF2_HARNESS", "")
 N = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551
@@ -87,7 +90,7 @@ class Harness(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    def run_stream(self, sectors, keys=None, extra=()):
+    def run_stream(self, sectors, keys=None, extra=(), aes_keys=()):
         path = os.path.join(self.tmp.name, "stream.bin")
         with open(path, "wb") as f:
             f.write(b"".join(sectors))
@@ -95,6 +98,12 @@ class Harness(unittest.TestCase):
         args = [HARNESS, "--stream", path, "--product", PRODUCT.hex(), "--base", hex(BASE)]
         for k in keys:
             args += ["--key", public_point(k).hex()]
+        for i, (label, key) in enumerate(aes_keys):
+            key_path = os.path.join(self.tmp.name, f"aes-{i}.bin")
+            fd = os.open(key_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "wb") as f:
+                f.write(label + key)
+            args += ["--aes-key-file", key_path]
         out = subprocess.run(args + list(extra), check=True, capture_output=True, text=True).stdout
         return json.loads(out)
 
@@ -295,12 +304,149 @@ class Harness(unittest.TestCase):
                             stored_digest=bytes(32))
         self.assert_rejected(self.run_stream(blocks(bad, ciphertext)), "STORED_DIGEST")
 
+    def encrypted_manifest(self, image, key, label, plaintext_digest=None):
+        m = make_manifest(self.key, image, flags=1, sign=False,
+                          plaintext_digest=plaintext_digest or hashlib.sha256(image).digest(),
+                          patch={56: label, 72: os.urandom(12)})
+        encrypted = AESGCM(key).encrypt(bytes(m[72:84]), image, b"SUF2-AEAD-V1\0" + bytes(m[:128]))
+        stored = encrypted[:-16]
+        m[128:160] = hashlib.sha256(stored).digest()
+        m[160:176] = encrypted[-16:]
+        sign(self.key, m)
+        return m, stored
+
+    def test_encrypted_install_at_block_and_sector_boundaries(self):
+        key, label = AESGCM.generate_key(bit_length=256), os.urandom(16)
+        output = os.path.join(self.tmp.name, "installed.bin")
+        for size in (1, 15, 16, 17, 255, 256, 257, 4095, 4096, 4097, 8193):
+            with self.subTest(size=size):
+                image = os.urandom(size)
+                m, stored = self.encrypted_manifest(image, key, label)
+                r = self.run_stream(blocks(m, stored), aes_keys=[(label, key)],
+                                    extra=["--require-encryption", "--installed-out", output])
+                self.assert_ok(r)
+                self.assertEqual((r["install"], r["meta"]), ("OK", "COMMITTED"))
+                self.assertTrue(r["staging_unchanged"])
+                self.assertEqual(Path(output).read_bytes(), image)
+
+    def test_encrypted_failures_never_modify_metadata_or_application(self):
+        key, label = AESGCM.generate_key(bit_length=256), os.urandom(16)
+        m, stored = self.encrypted_manifest(self.image, key, label)
+        cases = [
+            (m, stored, [], "NO_DECRYPTION_KEY"),
+            (m, stored, [(os.urandom(16), key)], "NO_DECRYPTION_KEY"),
+            (m, stored, [(label, AESGCM.generate_key(bit_length=256))], "GCM_TAG"),
+        ]
+        bad_tag = bytearray(m)
+        bad_tag[160] ^= 1
+        sign(self.key, bad_tag)
+        cases.append((bad_tag, stored, [(label, key)], "GCM_TAG"))
+        bad_aad = bytearray(m)
+        bad_aad[96] ^= 1
+        sign(self.key, bad_aad)
+        cases.append((bad_aad, stored, [(label, key)], "GCM_TAG"))
+        wrong_digest, ciphertext = self.encrypted_manifest(self.image, key, label, bytes(32))
+        cases.append((wrong_digest, ciphertext, [(label, key)], "PLAINTEXT_DIGEST"))
+        tampered = bytes([stored[0] ^ 1]) + stored[1:]
+        cases.append((bad_tag, tampered, [(label, key)], "STORED_DIGEST"))
+        bad_signature = bytearray(bad_tag)
+        bad_signature[200] ^= 1
+        cases.append((bad_signature, tampered, [], "SIGNATURE"))
+        for manifest, ciphertext, keys, cause in cases:
+            with self.subTest(cause=cause):
+                r = self.run_stream(blocks(manifest, ciphertext), aes_keys=keys)
+                self.assert_rejected(r, cause)
+                self.assertEqual((r["install"], r["mutations"], r["meta"]), (cause, 0, "EMPTY"))
+                self.assertTrue(r["staging_unchanged"])
+
+    def test_encrypted_install_recovers_from_interrupted_flash_operations(self):
+        key, label = AESGCM.generate_key(bit_length=256), os.urandom(16)
+        image = os.urandom(5001)
+        m, stored = self.encrypted_manifest(image, key, label)
+        output = os.path.join(self.tmp.name, "recovered.bin")
+        for successful_operations in (2, 3, 4, 5, 6):
+            with self.subTest(successful_operations=successful_operations):
+                r = self.run_stream(blocks(m, stored), aes_keys=[(label, key)],
+                    extra=["--fail-install-after", str(successful_operations), "--installed-out", output])
+                self.assertEqual((r["verify"], r["install"], r["meta"], r["retry"], r["boot"]),
+                                 ("OK", "STORAGE", "PENDING", "OK", "OK"), r)
+                self.assertTrue(r["staging_unchanged"])
+                self.assertEqual(Path(output).read_bytes(), image)
+
     # ---- Boot verification (section 9.2) -----------------------------
 
     def test_boot_detects_modified_image(self):
         r = self.run_stream(self.package(), extra=["--tamper-installed", "999"])
         self.assertEqual((r["verify"], r["boot"]), ("OK", "PLAINTEXT_DIGEST"))
 
+    def test_encrypted_boot_checks_installed_plaintext_without_aes_keys(self):
+        key, label = AESGCM.generate_key(bit_length=256), os.urandom(16)
+        m, stored = self.encrypted_manifest(self.image, key, label)
+        r = self.run_stream(blocks(m, stored), aes_keys=[(label, key)], extra=["--tamper-installed", "999"])
+        self.assertEqual((r["verify"], r["install"], r["boot"]), ("OK", "OK", "PLAINTEXT_DIGEST"))
+
+
+class KeyProvisioning(unittest.TestCase):
+    tools = Path(__file__).resolve().parents[3] / "tools" / "firmware"
+    generator = Path(__file__).resolve().parents[3] / "test-keys" / "generate-test-keys.py"
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.folder = Path(self.tmp.name)
+
+    def generate(self, *args):
+        return subprocess.run([sys.executable, str(self.generator), "--output", str(self.folder / "local"),
+                               *args], capture_output=True, text=True)
+
+    def header(self, keys, *args):
+        return subprocess.run([sys.executable, str(self.tools / "suf2_aes_keys_header.py"),
+            "--output", str(self.folder / "keys.h"), *args, *(str(k) for k in keys)],
+            capture_output=True, text=True)
+
+    def test_generated_keys_are_private_and_refuse_overwrite(self):
+        self.assertEqual(self.generate().returncode, 0)
+        local = self.folder / "local"
+        self.assertEqual(local.stat().st_mode & 0o777, 0o700)
+        originals = {p.name: p.read_bytes() for p in local.iterdir()}
+        self.assertEqual(len(originals), 4)
+        for p in local.iterdir():
+            self.assertEqual(p.stat().st_mode & 0o777, 0o600)
+        self.assertNotEqual(self.generate().returncode, 0)
+        self.assertEqual(originals, {p.name: p.read_bytes() for p in local.iterdir()})
+        key = local / "encryption-key.jwk"
+        self.assertEqual(self.header([key]).returncode, 0)
+        self.assertEqual((self.folder / "keys.h").stat().st_mode & 0o777, 0o600)
+        key.unlink()
+        self.assertEqual(self.generate("--aes-only").returncode, 0)
+        for name in ("signing-private.pem", "signing-public.pem", "signing-test-cert.pem"):
+            self.assertEqual((local / name).read_bytes(), originals[name])
+
+    def test_header_rejects_invalid_duplicate_and_production_test_keys(self):
+        valid = {"kty": "oct", "alg": "A256GCM", "kid": os.urandom(16).hex(),
+                 "k": base64.urlsafe_b64encode(os.urandom(32)).rstrip(b"=").decode("ascii"),
+                 "key_ops": ["decrypt"], "test_only": True}
+        key = self.folder / "key.jwk"
+        key.write_text(json.dumps(valid))
+        self.assertNotEqual(self.header([key], "--production").returncode, 0)
+        external = dict(valid, test_only=False)
+        key.write_text(json.dumps(external))
+        self.assertEqual(self.header([key], "--production").returncode, 0)
+        self.assertNotEqual(self.header([key], "--production", "--forbid-dir", str(self.folder)).returncode, 0)
+        self.assertNotEqual(self.header([key, key]).returncode, 0)
+        other = self.folder / "other.jwk"
+        other.write_text(json.dumps(dict(external, kid=os.urandom(16).hex())))
+        self.assertNotEqual(self.header([key, other]).returncode, 0)
+        invalid = [
+            dict(valid, kid="0" * 32), dict(valid, k="short"),
+            dict(valid, k=valid["k"] + "="), dict(valid, alg="A128GCM"),
+            dict(valid, key_ops=["encrypt"]), dict(valid, k=valid["k"][:-1] + "/"),
+        ]
+        for jwk in invalid:
+            key.write_text(json.dumps(jwk))
+            self.assertNotEqual(self.header([key]).returncode, 0)
+        key.write_text('{"kty":"oct","kty":"oct"}')
+        self.assertNotEqual(self.header([key]).returncode, 0)
 
 if __name__ == "__main__":
     if not HARNESS:

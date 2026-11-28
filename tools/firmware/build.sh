@@ -11,7 +11,7 @@ all includes RP2040, RP2350 and ESP32-S3. ESP32-S3 requires installed ESP-IDF to
 
 Options:
   --key FILE      private key used to sign blink.suf2
-                  (default: host/shared/local/signing-private.pem, created if missing)
+                  (default: test-keys/local/signing-private.pem, created if missing)
   --no-sign       do not pack blink.suf2
   --test          also run Ceedling, native library and loader simulation tests
   --test-only     run the tests and build no board
@@ -68,6 +68,21 @@ need_submodules() {
     fi
 }
 
+prepare_signing_key() {
+    if [[ -z $key ]]; then
+        key=$repo/test-keys/local/signing-private.pem
+    fi
+    if [[ $key == "$repo/test-keys/local/signing-private.pem" ]]; then
+        if [[ ! -f $key ]]; then
+            echo "==> generating local test keys"
+            python3 "$repo/test-keys/generate-test-keys.py"
+        elif [[ ! -f $repo/test-keys/local/encryption-key.jwk ]]; then
+            echo "==> adding a local test AES key"
+            python3 "$repo/test-keys/generate-test-keys.py" --aes-only
+        fi
+    fi
+}
+
 run_tests() {
     echo "==> Ceedling unit tests"
     [[ $clean == 1 ]] && "$repo/tools/firmware/run_unit_tests.sh" clobber
@@ -94,13 +109,7 @@ build_board() {
         exit 1
     fi
     if [[ $sign == 1 ]]; then
-        if [[ -z $key ]]; then
-            key=$repo/host/shared/local/signing-private.pem
-            if [[ ! -f $key ]]; then
-                echo "==> generating local test keys"
-                python3 "$repo/host/shared/generate-test-keys.py"
-            fi
-        fi
+        prepare_signing_key
         args+=("-DSUF2_SIGNING_KEY=$key")
     else
         args+=("-USUF2_SIGNING_KEY")
@@ -130,10 +139,7 @@ build_esp32() {
     suf2_esp32_environment "$repo"
     [[ $clean == 1 ]] && rm -rf "$dir"
     if [[ $sign == 1 ]]; then
-        if [[ -z $key ]]; then
-            key=$repo/host/shared/local/signing-private.pem
-            [[ -f $key ]] || python3 "$repo/host/shared/generate-test-keys.py"
-        fi
+        prepare_signing_key
         args+=("-DSUF2_SIGNING_KEY=$key")
     else
         args+=("-USUF2_SIGNING_KEY")

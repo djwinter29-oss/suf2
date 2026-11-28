@@ -3,6 +3,8 @@
 #include "unity.h"
 #include "suf2/suf2_disk.h"
 
+TEST_SOURCE_FILE("suf2_disk.c")
+
 static suf2_disk_t disk;
 static uint8_t received[SUF2_BLOCK_SIZE];
 static unsigned received_count;

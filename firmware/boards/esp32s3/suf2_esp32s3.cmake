@@ -29,12 +29,13 @@ if (SUF2_PRODUCTION)
     if (NOT _keys)
         message(FATAL_ERROR "SUF2_PRODUCTION requires SUF2_TRUSTED_KEYS")
     endif()
-    list(APPEND _key_args --production --forbid-dir "${SUF2_REPO_DIR}/host/shared")
+    list(APPEND _key_args --production --forbid-dir "${SUF2_REPO_DIR}/test-keys"
+        --forbid-dir "${SUF2_REPO_DIR}/host/shared")
 elseif (NOT _keys)
-    if (EXISTS "${SUF2_REPO_DIR}/host/shared/local/signing-public.pem")
-        set(_keys "${SUF2_REPO_DIR}/host/shared/local/signing-public.pem")
+    if (EXISTS "${SUF2_REPO_DIR}/test-keys/local/signing-public.pem")
+        set(_keys "${SUF2_REPO_DIR}/test-keys/local/signing-public.pem")
     else()
-        set(_keys "${SUF2_REPO_DIR}/host/shared/examples/signing-public.pem")
+        set(_keys "${SUF2_REPO_DIR}/test-keys/examples/signing-public.pem")
         message(WARNING "Using the example public key; generate local test keys to sign updates")
     endif()
 endif()
@@ -47,8 +48,15 @@ if (NOT _result EQUAL 0)
 endif()
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${SUF2_REPO_DIR}/tools/firmware/suf2_keys_header.py" ${_keys})
+if (CMAKE_CURRENT_SOURCE_DIR STREQUAL "${SUF2_ESP32_DIR}/suf2-boot")
+    include("${SUF2_REPO_DIR}/tools/firmware/suf2_decryption_keys.cmake")
+endif()
 
 function(suf2_esp32_validate_config)
+    if (CMAKE_CURRENT_SOURCE_DIR STREQUAL "${SUF2_ESP32_DIR}/suf2-boot" AND
+        CONFIG_ESP_MAIN_TASK_STACK_SIZE LESS 8192)
+        message(FATAL_ERROR "AES verification requires CONFIG_ESP_MAIN_TASK_STACK_SIZE >= 8192; update sdkconfig or rebuild clean")
+    endif()
     if (CONFIG_SECURE_BOOT OR CONFIG_SECURE_FLASH_ENC_ENABLED OR
         CONFIG_BOOTLOADER_SKIP_VALIDATE_IN_DEEP_SLEEP OR CONFIG_BOOTLOADER_SKIP_VALIDATE_ALWAYS OR
         CONFIG_BOOTLOADER_SKIP_VALIDATE_ON_POWER_ON OR CONFIG_BOOTLOADER_APP_TEST)

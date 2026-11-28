@@ -62,6 +62,7 @@ node_modules/
 host/dotnet/**/bin/
 host/dotnet/**/obj/
 host/python/build/
+test-keys/local/
 host/shared/local/
 *-private.pem
 *.pfx

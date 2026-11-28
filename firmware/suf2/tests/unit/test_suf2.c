@@ -4,6 +4,8 @@
 #include "suf2/suf2.h"
 #include "mock_suf2_crypto.h"
 
+TEST_SOURCE_FILE("suf2.c")
+
 static uint8_t manifest[SUF2_MANIFEST_SIZE];
 
 static void put32(uint8_t *p, uint32_t value)

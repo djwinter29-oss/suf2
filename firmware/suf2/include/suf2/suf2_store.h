@@ -54,7 +54,11 @@ suf2_reader_t suf2_store_app_reader(suf2_store_t *store);
 /* Copy the retained manifest for PENDING and COMMITTED; surface read errors. */
 suf2_status_t suf2_store_read_meta(suf2_store_t *store, uint8_t manifest[SUF2_MANIFEST_SIZE],
                                   suf2_meta_state_t *state);
-/* Reverify, journal, copy, boot-verify, then commit. May resume after power loss. */
+/* Reverify, journal, copy/decrypt, boot-verify, then commit. May resume after
+ * power loss. Ciphertext staging must remain immutable throughout installation.
+ * Encrypted updates are authenticated before the first destructive operation;
+ * installed plaintext cannot boot until boot verification and commit succeed.
+ */
 suf2_status_t suf2_store_install(suf2_store_t *store, const uint8_t manifest[SUF2_MANIFEST_SIZE],
                                 const suf2_policy_t *policy);
 

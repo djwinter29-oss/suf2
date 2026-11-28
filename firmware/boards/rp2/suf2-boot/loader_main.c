@@ -21,6 +21,7 @@
 #include "suf2_app.h"
 #include "suf2_board_config.h"
 #include "suf2_keys.h"
+#include "suf2_aes_keys.h"
 
 #define APP_BASE (XIP_BASE + SUF2_APP_OFFSET)
 #define FAILURE_QUIET_MS 1000u
@@ -42,6 +43,8 @@ static const suf2_policy_t policy = {
     .require_encryption = false,
     .keys = suf2_trusted_keys,
     .key_count = SUF2_TRUSTED_KEY_COUNT,
+    .decryption_keys = suf2_decryption_keys,
+    .decryption_key_count = SUF2_DECRYPTION_KEY_COUNT,
 };
 
 static suf2_session_t session;

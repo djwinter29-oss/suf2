@@ -34,7 +34,7 @@ git -C firmware/lib/pico-sdk submodule update --init lib/tinyusb
 
 You also need CMake 3.13 or newer, Ninja or Make, Python 3 with
 `cryptography`, a host C compiler for the tests and `arm-none-eabi-gcc` for
-the RP2 boards. ESP32-S3 setup is described below. Ceedling unit tests also need Ruby and Bundler.
+the RP2 boards. ESP32-S3 setup is described below. Ceedling unit tests also need Ruby.
 
 ## The library
 
@@ -53,7 +53,7 @@ address the device accepts, the largest image, the trusted keys). Then:
 
 The public headers in `suf2/include/suf2/` define the firmware-facing API
 (`suf2.h`, including storage callbacks) and the porting contract
-(`suf2_crypto.h`, SHA-256 and P-256 verification). Two reusable helpers also
+(`suf2_crypto.h`, SHA-256, P-256 verification and streaming AES-GCM). Two reusable helpers also
 have public APIs:
 
 - [suf2_store.h](suf2/include/suf2/suf2_store.h): staged NOR-flash installation,
@@ -72,31 +72,35 @@ Partial disk writes must arrive in order without interleaving.
 The core's embedded CMake target has no crypto implementation or Mbed TLS
 dependency. The [RP2 example port](boards/rp2/suf2-boot/port/README.md) owns the Mbed TLS
 backend, its minimal configuration, and its build wiring. Another platform
-provides those four crypto functions and the storage callbacks in its own
+provides the crypto functions and the storage callbacks in its own
 integration. Native tests reuse the RP2 example's crypto port.
 
-The library accepts signed packages only. An encrypted package passes the
-signature check and is then refused with `SUF2_E_NO_DECRYPTION_KEY`, because
-no decryption backend exists yet.
+The library requires signatures for all packages. With a provisioned AES-256 key,
+it also accepts encrypted packages: signature, stored digest, GCM tag and plaintext
+digest must all pass before installation changes flash. Missing keys return
+`SUF2_E_NO_DECRYPTION_KEY`; an invalid tag returns `SUF2_E_GCM_TAG`.
+The installer keeps ciphertext staging unchanged and decrypts in a second pass
+into the application slot, then boot-verifies and commits. Interrupted installs
+recheck staging before resuming. Every boot checks the signature and installed
+plaintext digest without requiring an AES key. This is transport encryption,
+not encryption at rest; the host packers remain signing-only.
 
 ### Unit tests with Ceedling
 
 The [Ceedling project](suf2/project.yml) uses Unity assertions and CMock for
 the crypto contract. It runs on the host without Pico SDK, Mbed TLS, hardware,
-or signing keys. The pinned gems are in [Gemfile](suf2/Gemfile) and
-[Gemfile.lock](suf2/Gemfile.lock).
+or signing keys. Ceedling is intentionally unpinned; there is no Bundler setup.
 
-Install Ruby 3.3 and Bundler, then the test dependencies once:
+Install Ruby 3.3, then install or update to the latest Ceedling release:
 
 ```sh
-gem install bundler -v 2.5.22 --no-document
-cd firmware/suf2
-bundle install
+gem install ceedling --no-document
 ```
 
-Some Linux distributions call Bundler `bundle3.3`; use that command instead
-of `bundle` if needed. The runner resolves Bundler through Ruby and works
-with either executable naming convention.
+The runner uses the latest installed Ceedling gem through Ruby, without requiring
+the `ceedling` executable on `PATH`. Re-run the install command to update locally;
+CI installs the latest release on each run. Test runs do not automatically
+download or update dependencies.
 
 From the repository root:
 
@@ -141,9 +145,9 @@ It fetches missing submodules, creates local test keys if there are none,
 and signs the example app with them. By hand, the same build is:
 
 ```sh
-python3 host/shared/generate-test-keys.py        # once: local test keys
+python3 test-keys/generate-test-keys.py        # once: local test keys
 cmake -S firmware/boards/rp2 -B build/rp2040 -G Ninja -DSUF2_BOARD=rp2040 \
-      -DSUF2_SIGNING_KEY=$PWD/host/shared/local/signing-private.pem
+      -DSUF2_SIGNING_KEY=$PWD/test-keys/local/signing-private.pem
 cmake --build build/rp2040
 ```
 
@@ -192,13 +196,14 @@ about a second. `STATUS.TXT` says why.
 
 ### Keys and product ID
 
-Development builds trust `host/shared/local/signing-public.pem` if you have
-generated one. Otherwise they trust the example key in `host/shared/examples`,
+Development builds trust `test-keys/local/signing-public.pem` if you have
+generated one. Otherwise they trust the example key in `test-keys/examples`,
 whose private key is not published, so nothing will install.
 
 | CMake option | Default | Meaning |
 | --- | --- | --- |
 | `SUF2_TRUSTED_KEYS` | local test key | `;`-separated PEM public keys or X.509 certificates |
+| `SUF2_DECRYPTION_KEYS` | local AES JWK if present, otherwise empty | `;`-separated AES-256 octet JWKs; explicit empty value provisions no AES keys |
 | `SUF2_PRODUCT_ID` | ASCII `SUF2RP2040` / `SUF2RP2350` | 32 hex digits; must match the packer's `--product-id` |
 | `SUF2_SIGNING_KEY` | unset | private key used to pack the example app at build time |
 | `SUF2_PRODUCTION` | `OFF` | refuse test keys and the default product ID |
@@ -206,12 +211,28 @@ whose private key is not published, so nothing will install.
 | `SUF2_FLASH_SIZE` | 2 MB / 4 MB | flash size of your board |
 | `SUF2_USB_VID`, `SUF2_USB_PID` | `0x1209`, `0x0001` | the pid.codes test IDs; use your own for products |
 
-With `SUF2_PRODUCTION=ON` the build stops if a key comes from `host/shared`,
+With `SUF2_PRODUCTION=ON` the build stops if a key comes from `test-keys` or legacy `host/shared`,
 if a certificate says "TEST ONLY", if the product ID is the default, or if
 `SUF2_SIGNING_KEY` is set. Sign releases offline with the host tools.
 
 `tools/firmware/suf2_keys_header.py` turns the keys into the C table the
 loader is built with.
+`tools/firmware/suf2_aes_keys_header.py` builds a separate owner-only AES header.
+Signing private keys are never compiled into the loader. The RP2 loader reserves
+4 KiB of stack for the verification/decryption paths and retains its 64 KiB flash region.
+
+For example, select decryption keys with:
+
+```sh
+tools/firmware/build.sh rp2040 -- -DSUF2_DECRYPTION_KEYS=/protected/device-key.jwk
+tools/firmware/build.sh esp32s3 -- -DSUF2_DECRYPTION_KEYS=/protected/device-key.jwk
+```
+
+Use [test-keys/](../test-keys/README.md) only for development. Production defaults
+never pick up test AES keys. Generated headers and loader/recovery binaries with
+AES keys contain secrets: do not commit or publish them. CI published artifacts
+explicitly use `-DSUF2_DECRYPTION_KEYS=`. Embedded AES keys require platform readout
+and debug protection; this demo does not provision those protections.
 
 ### Flash layout
 

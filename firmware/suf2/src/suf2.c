@@ -7,6 +7,7 @@
 
 static const uint8_t k_manifest_magic[8] = {'S', 'U', 'F', '2', 'M', 'F', 'S', 'T'};
 static const char k_sign_prefix[] = "SUF2-MANIFEST-V1"; /* followed by 0x00 */
+static const char k_aad_prefix[] = "SUF2-AEAD-V1"; /* followed by 0x00 */
 
 /* P-256 group order minus one, and (n - 1) / 2, big-endian. */
 static const uint8_t k_n_minus_1[32] = {
@@ -74,6 +75,7 @@ const char *suf2_status_name(suf2_status_t status)
     case SUF2_E_NO_DECRYPTION_KEY: return "NO_DECRYPTION_KEY";
     case SUF2_E_PLAINTEXT_DIGEST: return "PLAINTEXT_DIGEST";
     case SUF2_E_CRYPTO_BACKEND: return "CRYPTO_BACKEND";
+    case SUF2_E_GCM_TAG: return "GCM_TAG";
     case SUF2_E_STORAGE: return "STORAGE";
     case SUF2_E_ARGUMENT: return "ARGUMENT";
     }
@@ -388,6 +390,64 @@ static suf2_status_t check_digest(const suf2_reader_t *r, uint32_t length, const
     return equal_ct(digest, expected, SUF2_DIGEST_SIZE) ? SUF2_OK : mismatch;
 }
 
+suf2_status_t suf2_decrypt_start(suf2_gcm_t *ctx, const uint8_t m[SUF2_MANIFEST_SIZE],
+                                 const suf2_policy_t *p)
+{
+    if (!ctx || !m || !p || (p->decryption_key_count && !p->decryption_keys)) return SUF2_E_ARGUMENT;
+    for (size_t i = 0; i < p->decryption_key_count; i++) {
+        const suf2_decryption_key_t *key = &p->decryption_keys[i];
+        if (all_zero(key->key_id, SUF2_ID_SIZE) ||
+            memcmp(key->key_id, m + SUF2_M_ENCRYPTION_KEY_ID, SUF2_ID_SIZE) != 0) continue;
+        uint8_t aad[sizeof k_aad_prefix + 128];
+        memcpy(aad, k_aad_prefix, sizeof k_aad_prefix);
+        memcpy(aad + sizeof k_aad_prefix, m, 128);
+        return suf2_gcm_start(ctx, key->key, m + SUF2_M_NONCE, aad, sizeof aad);
+    }
+    return SUF2_E_NO_DECRYPTION_KEY;
+}
+
+static suf2_status_t check_plaintext(const uint8_t *m, const suf2_policy_t *p,
+                                     const suf2_reader_t *stored, uint32_t length)
+{
+    suf2_gcm_t gcm;
+    suf2_sha256_t sha;
+    uint8_t input[SUF2_CHUNK_SIZE], output[SUF2_CHUNK_SIZE + 16], tail[16], digest[SUF2_DIGEST_SIZE];
+    suf2_status_t st = suf2_decrypt_start(&gcm, m, p);
+    if (st != SUF2_OK) return st;
+    st = suf2_sha256_start(&sha);
+    bool hashing = st == SUF2_OK;
+    uint32_t total = 0, written = 0;
+    for (uint32_t off = 0; st == SUF2_OK && off < length;) {
+        uint32_t n = length - off < sizeof input ? length - off : (uint32_t)sizeof input;
+        st = stored->read(stored->ctx, off, input, n);
+        if (st != SUF2_OK) st = SUF2_E_STORAGE;
+        if (st == SUF2_OK) st = suf2_gcm_update(&gcm, input, n, output, sizeof output, &written);
+        if (st == SUF2_OK && (written > sizeof output || written > length - total)) st = SUF2_E_CRYPTO_BACKEND;
+        if (st == SUF2_OK) {
+            total += written;
+            st = suf2_sha256_update(&sha, output, written);
+        }
+        memset(output, 0, sizeof output);
+        off += n;
+    }
+    suf2_status_t finish = suf2_gcm_finish(&gcm, m + SUF2_M_TAG, tail, &written);
+    if (st == SUF2_OK) st = finish;
+    if (st == SUF2_OK && (written > sizeof tail || written > length - total)) st = SUF2_E_CRYPTO_BACKEND;
+    if (st == SUF2_OK) {
+        total += written;
+        st = suf2_sha256_update(&sha, tail, written);
+    }
+    if (hashing) {
+        finish = suf2_sha256_finish(&sha, digest);
+        if (st == SUF2_OK) st = finish;
+    }
+    memset(tail, 0, sizeof tail);
+    if (st == SUF2_OK && total != length) st = SUF2_E_CRYPTO_BACKEND;
+    if (st == SUF2_OK && !equal_ct(digest, m + SUF2_M_PLAINTEXT_DIGEST, sizeof digest))
+        st = SUF2_E_PLAINTEXT_DIGEST;
+    return st;
+}
+
 suf2_status_t suf2_verify_staged(const uint8_t m[SUF2_MANIFEST_SIZE], const suf2_policy_t *p,
                                  const suf2_reader_t *stored)
 {
@@ -397,8 +457,8 @@ suf2_status_t suf2_verify_staged(const uint8_t m[SUF2_MANIFEST_SIZE], const suf2
     if (st == SUF2_OK) st = check_policy(&info, m, p, true);
     if (st == SUF2_OK) st = check_signature(m, p);
     if (st == SUF2_OK) st = check_digest(stored, info.image_length, m + SUF2_M_STORED_DIGEST, SUF2_E_STORED_DIGEST);
-    /* No AES-GCM decryptor is provisioned in this core (section 9.1 step 5). */
-    if (st == SUF2_OK && (info.flags & SUF2_MANIFEST_FLAG_ENCRYPTED)) st = SUF2_E_NO_DECRYPTION_KEY;
+    if (st == SUF2_OK && (info.flags & SUF2_MANIFEST_FLAG_ENCRYPTED))
+        st = check_plaintext(m, p, stored, info.image_length);
     return st;
 }
 

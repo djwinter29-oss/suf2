@@ -3,10 +3,14 @@
 
 #include "mbedtls/ecdsa.h"
 #include "mbedtls/ecp.h"
+#include "mbedtls/gcm.h"
+#include "mbedtls/platform_util.h"
 #include "mbedtls/sha256.h"
 #include "suf2/suf2_crypto.h"
 
 _Static_assert(sizeof(mbedtls_sha256_context) <= SUF2_SHA256_CTX_SIZE, "SUF2_SHA256_CTX_SIZE too small");
+_Static_assert(sizeof(mbedtls_gcm_context) <= SUF2_GCM_CTX_SIZE, "SUF2_GCM_CTX_SIZE too small");
+_Static_assert(_Alignof(mbedtls_gcm_context) <= _Alignof(suf2_gcm_t), "SUF2 GCM context alignment too small");
 
 static mbedtls_sha256_context *ctx_of(suf2_sha256_t *ctx)
 {
@@ -64,4 +68,56 @@ suf2_status_t suf2_p256_verify(const uint8_t public_key[SUF2_PUBLIC_KEY_SIZE], c
     mbedtls_ecp_point_free(&q);
     mbedtls_ecp_group_free(&grp);
     return st;
+}
+
+static mbedtls_gcm_context *gcm_of(suf2_gcm_t *ctx)
+{
+    return (mbedtls_gcm_context *)(void *)ctx->u.bytes;
+}
+
+suf2_status_t suf2_gcm_start(suf2_gcm_t *ctx, const uint8_t key[SUF2_AES_KEY_SIZE],
+                             const uint8_t nonce[12], const uint8_t *aad, uint32_t aad_len)
+{
+    mbedtls_gcm_init(gcm_of(ctx));
+    if (mbedtls_gcm_setkey(gcm_of(ctx), MBEDTLS_CIPHER_ID_AES, key, 256) != 0 ||
+        mbedtls_gcm_starts(gcm_of(ctx), MBEDTLS_GCM_DECRYPT, nonce, 12) != 0 ||
+        mbedtls_gcm_update_ad(gcm_of(ctx), aad, aad_len) != 0) {
+        mbedtls_gcm_free(gcm_of(ctx));
+        return SUF2_E_CRYPTO_BACKEND;
+    }
+    return SUF2_OK;
+}
+
+suf2_status_t suf2_gcm_update(suf2_gcm_t *ctx, const uint8_t *input, uint32_t len,
+                              uint8_t *output, uint32_t capacity, uint32_t *written)
+{
+    size_t n = 0;
+    *written = 0;
+    if (mbedtls_gcm_update(gcm_of(ctx), input, len, output, capacity, &n) != 0 || n > capacity)
+        return SUF2_E_CRYPTO_BACKEND;
+    *written = (uint32_t)n;
+    return SUF2_OK;
+}
+
+suf2_status_t suf2_gcm_finish(suf2_gcm_t *ctx, const uint8_t expected[16], uint8_t output[16],
+                              uint32_t *written)
+{
+    uint8_t tag[16];
+    size_t n = 0;
+    *written = 0;
+    int result = mbedtls_gcm_finish(gcm_of(ctx), output, 16, &n, tag, sizeof tag);
+    mbedtls_gcm_free(gcm_of(ctx));
+    mbedtls_platform_zeroize(ctx, sizeof *ctx);
+    if (result != 0 || n > 16) {
+        mbedtls_platform_zeroize(output, 16);
+        return SUF2_E_CRYPTO_BACKEND;
+    }
+    uint8_t different = 0;
+    for (unsigned i = 0; i < sizeof tag; i++) different |= tag[i] ^ expected[i];
+    if (different) {
+        mbedtls_platform_zeroize(output, 16);
+        return SUF2_E_GCM_TAG;
+    }
+    *written = (uint32_t)n;
+    return SUF2_OK;
 }

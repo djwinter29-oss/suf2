@@ -34,8 +34,18 @@ For a custom signing key, also pass the matching public key with
 `-- -DSUF2_TRUSTED_KEYS=/absolute/path/public.pem`. `SUF2_PRODUCT_ID` is exactly
 32 hex digits; the development value represents `SUF2ESP32S3` with zero padding.
 `SUF2_PRODUCTION=ON` requires a non-default product ID, provisioned public keys
-outside `host/shared`, and `--no-sign`; sign releases offline. This build guard
+outside `test-keys` and legacy `host/shared`, and `--no-sign`; sign releases offline. This build guard
 does not make the device secure or provision hardware security.
+
+`SUF2_DECRYPTION_KEYS` selects AES-256 octet JWKs for the recovery application,
+defaulting to the local development AES key if present. An explicit empty value
+disables provisioning; production never defaults to test keys. The custom
+second-stage bootloader embeds only public signing keys and verifies installed
+plaintext without AES access. See [key provisioning](../../README.md#keys-and-product-id).
+Do not publish recovery binaries containing AES secrets. Host packers still
+produce signing-only packages. Recovery requires an 8 KiB main-task stack;
+existing SDK configurations must update `CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192`
+or rebuild with `--clean` to pick up the new defaults.
 
 ## Native image profile
 
@@ -59,7 +69,7 @@ native application BIN as input:
 
 ```sh
 tools/host/run_python.sh pack --input build/esp32s3/blink/blink.bin \
-  --output my-blink.suf2 --key host/shared/local/signing-private.pem \
+  --output my-blink.suf2 --key test-keys/local/signing-private.pem \
   --product-id 53554632455350333253330000000000 --base 0x42000000
 ```
 

@@ -7,7 +7,8 @@ SUF2 has three host applications with the same signed-only package contract:
 | [python/](python/) | Python CLI for build scripts and automation |
 | [dotnet/](dotnet/) | .NET CLI; no UI |
 | [dashboard/](dashboard/) | Static browser dashboard, deployable to GitHub Pages |
-| [shared/](shared/) | Key-format documentation, public examples and local test-key generation |
+| [shared/](shared/) | Cross-producer contract tests |
+| [../test-keys/](../test-keys/) | Public examples and local signing/AES test-key generation |
 
 All three pack BIN, Intel HEX and little-endian ELF32/ELF64 into the current
 [draft SUF2 format](../docs/spec/suf2-specification.md). Authentication is mandatory.
@@ -28,9 +29,9 @@ Each script works from any directory and needs no install step:
 | `tools/host/run_tests.sh` | every check listed under [Checks](#checks) |
 
 ```sh
-python3 host/shared/generate-test-keys.py
+python3 test-keys/generate-test-keys.py
 tools/host/run_python.sh pack --input app.elf --output app.suf2 \
-    --key host/shared/local/signing-private.pem \
+    --key test-keys/local/signing-private.pem \
     --product-id 00112233445566778899aabbccddeeff --base 0x10011000
 ```
 

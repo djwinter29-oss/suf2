@@ -1,4 +1,5 @@
 #include "suf2/suf2_store.h"
+#include "suf2/suf2_crypto.h"
 
 #include <string.h>
 
@@ -127,6 +128,63 @@ suf2_status_t suf2_store_read_meta(suf2_store_t *s, uint8_t manifest[SUF2_MANIFE
     return SUF2_OK;
 }
 
+static suf2_status_t copy_image(suf2_store_t *s, const uint8_t *manifest, const suf2_policy_t *policy,
+                                 const suf2_manifest_t *info)
+{
+    uint8_t *buf = s->scratch.bytes;
+    bool encrypted = (info->flags & SUF2_MANIFEST_FLAG_ENCRYPTED) != 0;
+    bool finished = false;
+    suf2_gcm_t gcm;
+    uint8_t input[PAGE], plain[PAGE + 16], tail[16];
+    suf2_status_t st = encrypted ? suf2_decrypt_start(&gcm, manifest, policy) : SUF2_OK;
+    if (st != SUF2_OK) return st;
+    uint32_t span = (info->image_length + SECTOR - 1) / SECTOR * SECTOR;
+    for (uint32_t off = 0; off < span && st == SUF2_OK; off += SECTOR) {
+        st = staging_read(s, off, buf, SECTOR);
+        if (st != SUF2_OK) break;
+        if (encrypted) {
+            uint32_t length = info->image_length - off < SECTOR ? info->image_length - off : SECTOR;
+            uint32_t out = 0, written = 0;
+            for (uint32_t in = 0; in < length && st == SUF2_OK;) {
+                uint32_t n = length - in < PAGE ? length - in : PAGE;
+                memcpy(input, buf + in, n);
+                st = suf2_gcm_update(&gcm, input, n, plain, sizeof plain, &written);
+                if (st == SUF2_OK && (written > sizeof plain || written > length - out))
+                    st = SUF2_E_CRYPTO_BACKEND;
+                if (st == SUF2_OK) {
+                    memcpy(buf + out, plain, written);
+                    out += written;
+                }
+                memset(plain, 0, sizeof plain);
+                in += n;
+            }
+            if (st == SUF2_OK && off + length == info->image_length) {
+                st = suf2_gcm_finish(&gcm, manifest + SUF2_M_TAG, tail, &written);
+                finished = true;
+                if (st == SUF2_OK && (written > sizeof tail || written > length - out))
+                    st = SUF2_E_CRYPTO_BACKEND;
+                if (st == SUF2_OK) {
+                    memcpy(buf + out, tail, written);
+                    out += written;
+                }
+                memset(tail, 0, sizeof tail);
+            }
+            if (st == SUF2_OK && out != length) st = SUF2_E_CRYPTO_BACKEND;
+            if (st != SUF2_OK) break;
+        }
+        st = erase(s, s->cfg.app_offset + off, SECTOR);
+        if (st == SUF2_OK) st = program(s, s->cfg.app_offset + off, buf, SECTOR);
+    }
+    if (encrypted && !finished) {
+        uint32_t written;
+        suf2_status_t finish = suf2_gcm_finish(&gcm, manifest + SUF2_M_TAG, tail, &written);
+        if (st == SUF2_OK) st = finish;
+        memset(tail, 0, sizeof tail);
+    }
+    if (st != SUF2_OK) memset(buf, 0, SECTOR);
+    return st;
+}
+
 suf2_status_t suf2_store_install(suf2_store_t *s, const uint8_t manifest[SUF2_MANIFEST_SIZE],
                                 const suf2_policy_t *policy)
 {
@@ -153,12 +211,11 @@ suf2_status_t suf2_store_install(suf2_store_t *s, const uint8_t manifest[SUF2_MA
     if ((st = erase(s, s->cfg.meta_offset, SECTOR)) != SUF2_OK) return st;
     if ((st = program(s, s->cfg.meta_offset, buf, 2 * PAGE)) != SUF2_OK) return st;
 
-    uint32_t span = (info.image_length + SECTOR - 1) / SECTOR * SECTOR;
-    for (uint32_t off = 0; off < span; off += SECTOR) {
-        if ((st = staging_read(s, off, buf, SECTOR)) != SUF2_OK) return st;
-        if ((st = erase(s, s->cfg.app_offset + off, SECTOR)) != SUF2_OK) return st;
-        if ((st = program(s, s->cfg.app_offset + off, buf, SECTOR)) != SUF2_OK) return st;
-    }
+    /* Verification already authenticated plaintext; preserve ciphertext in
+     * immutable staging and decrypt again while copying. Interrupted installs
+     * re-run all checks, and no application boots until the commit is written.
+     */
+    if ((st = copy_image(s, manifest, policy, &info)) != SUF2_OK) return st;
     if ((st = suf2_verify_boot(manifest, policy, &installed)) != SUF2_OK) return st;
 
     memset(buf, 0xff, PAGE);

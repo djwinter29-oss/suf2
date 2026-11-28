@@ -9,6 +9,7 @@
 #include "flash_port.h"
 #include "suf2_config.h"
 #include "suf2_keys.h"
+#include "suf2_aes_keys.h"
 #include "usb.h"
 
 static const char *TAG = "suf2";
@@ -24,6 +25,7 @@ static suf2_status_t last_error;
 static const suf2_policy_t policy = {
     .product_id = SUF2_PRODUCT_ID_BYTES, .execution_base = SUF2_EXECUTION_BASE,
     .max_image_size = SUF2_SLOT_SIZE, .keys = suf2_trusted_keys, .key_count = SUF2_TRUSTED_KEY_COUNT,
+    .decryption_keys = suf2_decryption_keys, .decryption_key_count = SUF2_DECRYPTION_KEY_COUNT,
 };
 
 static void check(suf2_status_t status)
@@ -39,8 +41,9 @@ static size_t info_text(void *ctx, char *buf, size_t size)
     (void)ctx;
     int n = snprintf(buf, size, "SUF2 ESP32-S3 development loader\r\n"
         "Product ID: %s\r\nExecution window: 0x%08lx\r\nLargest image: %lu bytes\r\n"
-        "Signed ESP-IDF BIN images only; encryption is not supported\r\n",
-        SUF2_PRODUCT_ID_HEX, (unsigned long)SUF2_EXECUTION_BASE, (unsigned long)SUF2_SLOT_SIZE);
+        "Authenticated ESP-IDF BIN images; AES-256-GCM keys: %u\r\n",
+        SUF2_PRODUCT_ID_HEX, (unsigned long)SUF2_EXECUTION_BASE, (unsigned long)SUF2_SLOT_SIZE,
+        (unsigned)SUF2_DECRYPTION_KEY_COUNT);
     return n < 0 ? size : (size_t)n < size ? (size_t)n : size - 1;
 }
 
