@@ -65,10 +65,10 @@ References are sections of [suf2-specification.md](../suf2-specification.md), [d
 | --- | --- | --- | --- | --- |
 | U1 | Mitigated | Mandatory signature check against a provisioned key; no unsigned mode | spec 7, 9 | S1–S6, S18a–S18c |
 | U2 | Mitigated | Manifest signature, image digests and, when encrypted, the GCM tag. UF2 headers and package identifiers are checked against the fixed layout and signed manifest; they have no separate signature | spec 3–7, 9 | S1, I1, I4, E1–E4 |
-| U3 | Mitigated | Package identifier recomputed from the manifest, canonical block numbering and a final digest over the assembled image. Blocks of other UF2 families never enter a session | spec 4, 5, 8 | T2, T3, T13, T15, T17 |
+| U3 | Mitigated | Package identifier recomputed from the manifest, canonical block numbering and a final digest over the assembled image. Blocks of other UF2 families never enter a session | spec 4, 5, 8 | T2, T3, T13a–T13b, T15, T17 |
 | U4 | Mitigated | Assembly is order-independent: valid reordering and identical duplicates are **accepted**, because the assembled package must still verify. Truncation, conflicting duplicates and inconsistent block counts are rejected. A failed session stays failed until a local reset, and blocks arriving after completion cannot change the candidate | spec 8 | V5–V7, T1, T8–T10, T14, T16–T21, T22, I2, I3 |
-| U5 | Partial | Fixed layout, checked arithmetic, bounded caller-owned state. Evidence depends on fuzzing, which is not yet planned in detail | DG 1 | T4, T5a–T5c, T6a–T6c, T11; fuzzing plan (gap) |
-| U6 | Mitigated | The signed load address identifies the intended execution base. Local policy checks that base and image length and selects the physical installation destination; UF2 `targetAddr` must be zero | spec 3, 6; TC 2 | T5a–T5c, S11a, B17 |
+| U5 | Partial | Fixed layout, checked arithmetic, bounded caller-owned state. Evidence depends on fuzzing, which is not yet planned in detail | DG 1 | T4, T5a–T5c, T6a–T6d, T11a–T11b; fuzzing plan (gap) |
+| U6 | Mitigated | The signed load address identifies the intended execution base. Local policy checks that base and image length and selects the physical installation destination; UF2 `targetAddr` must be zero | spec 3, 6; TC 2 | T5a–T5c, T11b, S11a, B17 |
 | U7 | Partial | Fixed limits and session reset on link disconnect bound resource use. Someone with access to the update interface can still keep the device in update mode | spec 8; DG 5 | T9, T10, T12 |
 | U8 | Partial | Staged data is re-verified immediately before destructive writes, then installed bytes are checked before being marked bootable. On each boot, the image must stay unchanged from verification to handoff | spec 9; DG 2; TC 2 (item 5) | B9 |
 | U9 | Partial | The loader does not export keys or protected plaintext; protection against extraction through physical access or side channels is not guaranteed by the package profile | DG 8; TC 2 | B10; platform review |
@@ -94,10 +94,10 @@ References are sections of [suf2-specification.md](../suf2-specification.md), [d
 | --- | --- | --- | --- | --- |
 | K1 | Accepted | Guidance on offline keys; several keys may be provisioned, but there is no revocation or rotation | DG 6; TC 6 | none |
 | K2 | External | Build and signing pipeline security | none | none |
-| K3 | Partial | Test keys are labelled, and production configurations must reject them | DG 6 | gap |
+| K3 | Partial | Test keys are labelled, and production configurations must reject them | DG 6; TC 6 | B20 (planned; not yet run) |
 | K4 | Accepted | A key per product or fleet segment limits the blast radius compared with one fleet-wide key, but extraction exposes packages protected by that key across its devices. Hardware resistance to key extraction is a platform concern | DG 6 | platform key-extraction review |
-| K5 | Partial | Producers must use a fresh CSPRNG nonce per AES-GCM invocation with no user override. The provisioning and signing pipeline must enforce at most 2^32 invocations per key over its lifetime, across all producers combined, including discarded or retried encryptions. A device cannot detect reuse or enforce that shared budget | spec 7; DG 6 | N1–N2 (planned; not yet run) |
-| K6 | Mitigated | Only provisioned keys are trusted; key IDs only select among them | spec 6.1, 9 | S4–S6 |
+| K5 | Partial | Producers must use a fresh CSPRNG nonce per AES-GCM invocation with no user override. The provisioning and signing pipeline must enforce at most 2^32 invocations per key over its lifetime, across all producers combined, including discarded or retried encryptions. A device cannot detect reuse or enforce that shared budget | spec 7; DG 6 | PR1–PR3 (planned; not yet run) |
+| K6 | Mitigated | Only provisioned keys are trusted; key IDs only select among them | spec 6.1, 9 | S4–S6, S19 |
 | K7 | Mitigated | Algorithms are fixed by the format version; unsupported versions are rejected; no fallback from encrypted to signed-only | spec 7, 9, 11 | S7a–S7d, S8, E7, E8 |
 | K8 | Accepted | v0.1 has no key-revocation or retirement mechanism; a provisioned key remains trusted | spec 12 | none |
 | K9 | Out of scope | v0.1 does not define authorized key transitions or recovery from a transition that removes all usable keys | spec 1, 12 | none |
@@ -114,7 +114,7 @@ References are sections of [suf2-specification.md](../suf2-specification.md), [d
 
 | ID | Treatment | How | Reference | Test |
 | --- | --- | --- | --- | --- |
-| P1 | Partial | The installed image and retained manifest are verified at every boot. Modification is detected, not prevented | spec 9; DG 4 | B3, B4 |
+| P1 | Partial | The installed image and retained manifest are verified at every boot. Modification is detected, not prevented | spec 9; DG 4 | B3, B4, B21 |
 | P2 | Platform | Requires a root of trust established by trusted provisioning, plus a trust anchor and boot policy protected against the stated attacker; the verifier may be immutable or authenticated by an earlier trusted stage | TC 2 (items 1, 2) | platform walkthrough |
 | P3 | Platform | Checked code must stay unchanged until handoff (TC 2 item 5). Keeping it unchanged while it runs is a separate runtime protection the platform must provide (TC 4) | TC 2 (item 5); TC 4 | platform walkthrough |
 | P4 | Accepted | Encryption is transit-only | spec 12 | none |
@@ -175,7 +175,7 @@ SUF2 does not provide a hardware root of trust, so the outcome depends on the pl
 | Device secrets resist physical extraction and secret-dependent timing | Platform and cryptographic-library review |
 | Repeated updates do not exceed the target's flash endurance assumptions | Target-specific endurance analysis |
 
-Known gaps: executable fuzzing and producer-test harnesses (N1–N2, K5), a production test-key rejection test (K3), a side-channel review (U11), flash-endurance analysis (P13), provisioning evidence (P10), recovery-path tests (P12), and platform walkthroughs. B14 covers the normal update-mode request in U12.
+Known gaps: executable fuzzing and producer-test harnesses (PR1–PR3, K5), platform assurance tests (including B20–B21), a side-channel review (U11), flash-endurance analysis (P13), provisioning evidence (P10), recovery-path tests (P12), and platform walkthroughs. B14 covers the normal update-mode request in U12.
 
 ## Decisions for v0.1 and future work
 
