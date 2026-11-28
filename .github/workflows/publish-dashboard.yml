@@ -1,0 +1,118 @@
+name: Publish Dashboard Pages
+
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Published release tag, for example v1.2.3"
+        required: false
+        type: string
+      test_publish:
+        description: "Deploy the selected branch commit to the live Pages URL instead of a release"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dashboard-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Validate and stage dashboard
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      pages: read
+    steps:
+      - name: Checkout release tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Validate published release
+        id: release
+        if: github.event_name != 'workflow_dispatch' || !inputs.test_publish
+        env:
+          RELEASE_TAG: ${{ github.event.workflow_run.head_branch || inputs.tag }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          VERSION=$(tools/release/resolve-release-version.sh "$RELEASE_TAG")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          test "$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --json isDraft,isPrerelease --jq '.isDraft == false and .isPrerelease == false')" = true
+          python3 tools/release/require_release_checks.py --tag "$RELEASE_TAG" --expected-sha "$SOURCE_SHA"
+
+      - name: Resolve source commit
+        id: source
+        env:
+          RELEASE_TAG: ${{ github.event.workflow_run.head_branch || inputs.tag }}
+          TEST_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.test_publish }}
+        run: |
+          set -eu
+          if [ "$TEST_PUBLISH" = true ]; then
+            echo "ref=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=refs/tags/$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout dashboard source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.source.outputs.ref }}
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+
+      - name: Check and test dashboard
+        run: |
+          npm --prefix host/dashboard run checks
+          npm --prefix host/dashboard test
+
+      - name: Stage and verify site
+        env:
+          SITE_VERSION: ${{ inputs.test_publish && format('0.0.0-test.{0}.{1}', github.run_id, github.run_attempt) || steps.release.outputs.version }}
+        run: |
+          python3 tools/host/dashboard_site.py build --output build/dashboard-site --version "$SITE_VERSION"
+          python3 tools/host/dashboard_site.py verify --output build/dashboard-site --version "$SITE_VERSION"
+
+      - name: Configure Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - name: Upload Pages site
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: build/dashboard-site
+
+  deploy:
+    name: Deploy dashboard
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

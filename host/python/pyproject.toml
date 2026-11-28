@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=77", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "suf2-host"
+dynamic = ["version"]
+description = "Draft SUF2 signed firmware packer"
+readme = "README.md"
+license = "BSD-3-Clause"
+requires-python = ">=3.10"
+dependencies = ["cryptography>=43"]
+
+[project.scripts]
+suf2 = "suf2.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# The version comes from the vX.Y.Z git tag. Release builds set
+# SETUPTOOLS_SCM_PRETEND_VERSION; builds outside git fall back to 0.0.0.
+[tool.setuptools_scm]
+root = "../.."
+fallback_version = "0.0.0"

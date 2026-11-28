@@ -1,0 +1,12 @@
+{
+  "name": "suf2-dashboard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "checks": "node --check input.js && node --check packer.js && node --check app.js && node --check test/dashboard.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

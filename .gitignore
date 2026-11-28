@@ -53,3 +53,22 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# Host build output and local signing material
+__pycache__/
+*.egg-info/
+.venv/
+node_modules/
+host/dotnet/**/bin/
+host/dotnet/**/obj/
+host/python/build/
+test-keys/local/
+host/shared/local/
+*-private.pem
+*.pfx
+*.p12
+.tsupgrader/
+
+# Firmware build output
+build/
+.bundle/

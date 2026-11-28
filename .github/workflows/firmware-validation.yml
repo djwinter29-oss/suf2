@@ -1,0 +1,211 @@
+name: Firmware validation
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  library:
+    name: Library and loader simulation
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Fetch Mbed TLS
+        run: git submodule update --init --depth 1 firmware/lib/mbedtls
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build g++
+
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: python -m pip install cryptography
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@145243922b4465b78e04dd66294782c7de45901f # v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Install latest Ceedling
+        run: gem install ceedling --no-document
+
+      - name: Library and loader simulation tests
+        run: tools/firmware/build.sh --test-only
+
+      - name: Upload unit test reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: suf2-unit-test-reports
+          path: build/ceedling-suf2/artifacts/
+          if-no-files-found: warn
+
+  boards:
+    name: Loader (${{ matrix.board }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        board: [rp2040, rp2350]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Fetch libraries
+        run: |
+          git submodule update --init --depth 1 firmware/lib/mbedtls firmware/lib/pico-sdk
+          git -C firmware/lib/pico-sdk submodule update --init --depth 1 lib/tinyusb
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build g++
+
+      - name: Install Arm GNU Toolchain
+        uses: carlosperate/arm-none-eabi-gcc-action@49f4db4520f840e77ab1e99b24cfac2c540a21b1 # v1
+        with:
+          release: "13.3.Rel1"
+
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: python -m pip install cryptography
+
+      # build.sh creates throwaway test keys in test-keys/local and signs
+      # the blink example with them. AES keys must not enter published binaries.
+      - name: Build loader and signed blink example
+        env:
+          BOARD: ${{ matrix.board }}
+        run: tools/firmware/build.sh "$BOARD" -- -DSUF2_DECRYPTION_KEYS=
+
+      - name: Build verification harness
+        run: |
+          cmake -S firmware/suf2 -B build/firmware-suf2 -G Ninja
+          cmake --build build/firmware-suf2 --target suf2_harness
+
+      - name: Verify build contract
+        env:
+          BOARD: ${{ matrix.board }}
+        run: |
+          python3 tools/release/verify-build.py \
+            --build-dir "build/$BOARD" \
+            --board "$BOARD" \
+            --harness build/firmware-suf2/tests/suf2_harness \
+            --public-key test-keys/local/signing-public.pem
+
+      - name: Production build refuses test keys
+        env:
+          BOARD: ${{ matrix.board }}
+        run: |
+          if cmake -S firmware/boards/rp2 -B build/production-guard -G Ninja \
+              -DSUF2_BOARD="$BOARD" \
+              -DSUF2_PRODUCTION=ON \
+              -DSUF2_TRUSTED_KEYS="$PWD/test-keys/local/signing-public.pem" \
+              -DSUF2_PRODUCT_ID=00112233445566778899aabbccddeeff; then
+            echo "::error::production configure accepted a local test key"
+            exit 1
+          fi
+
+      - name: Upload development build
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: suf2-dev-${{ matrix.board }}
+          path: |
+            build/${{ matrix.board }}/suf2_loader.uf2
+            build/${{ matrix.board }}/suf2_loader.elf
+            build/${{ matrix.board }}/blink/blink.suf2
+          if-no-files-found: error
+          retention-days: 14
+
+  esp32s3:
+    name: Loader (ESP32-S3)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Fetch libraries
+        run: |
+          git submodule update --init --depth 1 firmware/lib/mbedtls firmware/lib/tinyusb
+          git submodule update --init --recursive --depth 1 firmware/lib/esp-idf
+
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build g++
+          python -m pip install cryptography
+          firmware/lib/esp-idf/install.sh esp32s3
+
+      - name: Build loader and signed blink example
+        run: tools/firmware/build.sh esp32s3 -- -DSUF2_DECRYPTION_KEYS=
+
+      - name: Build verification harness
+        run: |
+          cmake -S firmware/suf2 -B build/firmware-suf2 -G Ninja
+          cmake --build build/firmware-suf2 --target suf2_harness
+
+      - name: Verify build contract
+        run: |
+          python3 tools/release/verify-build.py --board esp32s3 \
+            --build-dir build/esp32s3 \
+            --harness build/firmware-suf2/tests/suf2_harness \
+            --public-key test-keys/local/signing-public.pem
+          source firmware/lib/esp-idf/export.sh
+          python -m esptool --chip esp32s3 image_info build/esp32s3/suf2-boot/bootloader/bootloader.bin
+          python -m esptool --chip esp32s3 image_info build/esp32s3/suf2-boot/suf2_boot.bin
+          python -m esptool --chip esp32s3 image_info build/esp32s3/blink/blink.bin
+
+      - name: Production build refuses test keys
+        run: |
+          if cmake -S firmware/boards/esp32s3/suf2-boot -B build/production-guard -G Ninja \
+              -DSUF2_PRODUCTION=ON \
+              -DSUF2_TRUSTED_KEYS="$PWD/test-keys/local/signing-public.pem" \
+              -DSUF2_PRODUCT_ID=00112233445566778899aabbccddeeff \
+              > build/esp32-production-guard.log 2>&1; then
+            echo "::error::production configure accepted a local test key"
+            exit 1
+          fi
+          cat build/esp32-production-guard.log
+          grep -Fq "example/test key folder" build/esp32-production-guard.log
+
+      - name: Verify flash command without hardware writes
+        run: tools/firmware/flash.sh esp32s3 --port /dev/ttyUSB0 --blink --dry-run
+
+      - name: Upload development build
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: suf2-dev-esp32s3
+          path: |
+            build/esp32s3/suf2-boot/bootloader/bootloader.bin
+            build/esp32s3/suf2-boot/bootloader/bootloader.elf
+            build/esp32s3/suf2-boot/suf2_boot.bin
+            build/esp32s3/suf2-boot/suf2_boot.elf
+            build/esp32s3/suf2-boot/partition_table/partition-table.bin
+            build/esp32s3/suf2-boot/flasher_args.json
+            build/esp32s3/suf2-boot/flash_args
+            build/esp32s3/blink/blink.suf2
+          if-no-files-found: error
+          retention-days: 14

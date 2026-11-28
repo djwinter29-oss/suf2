@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>SUF2 · Signed firmware packer</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">SUF2 / local firmware tooling</p>
+      <h1>Pack a signed firmware update</h1>
+      <p>Choose an image, set its execution range, then sign a SUF2 package entirely in your browser.</p>
+    </header>
+    <aside class="notice" aria-labelledby="security-title">
+      <h2 id="security-title">Signed-only release · encryption is not supported</h2>
+      <p>Firmware remains readable. AES-GCM is deferred until a shared, global per-key encryption budget can be enforced across all producers.</p>
+      <p>No files or keys are uploaded, and no private keys are persisted. <strong>Hosted scripts can read the key you provide.</strong> For production signing, prefer a reviewed offline CLI or HSM. Clearing inputs is not a guarantee of secure memory erasure.</p>
+    </aside>
+    <noscript><p class="notice">JavaScript is required for local parsing and signing. Enable it only if you trust this dashboard.</p></noscript>
+    <form id="pack-form" novalidate>
+      <fieldset>
+        <legend><span class="step">1</span> Firmware image</legend>
+        <label for="firmware">Local firmware file</label>
+        <input id="firmware" type="file" accept=".bin,.hex,.ihex,.elf,.axf" required aria-describedby="firmware-help">
+        <p class="help" id="firmware-help">BIN, Intel HEX, or little-endian ELF32/64 ET_EXEC. Input and normalized image are each limited to 16 MiB. ELF uses file-backed PT_LOAD bytes at physical addresses; BSS is ignored.</p>
+        <label for="format">Input format</label>
+        <select id="format">
+          <option value="bin">Binary (.bin)</option>
+          <option value="hex">Intel HEX (.hex)</option>
+          <option value="elf">ELF executable (.elf)</option>
+        </select>
+      </fieldset>
+      <fieldset>
+        <legend><span class="step">2</span> Identity and execution range</legend>
+        <label for="product">Product ID</label>
+        <input id="product" type="text" required pattern="[0-9a-fA-F]{32}" maxlength="32" placeholder="32 hexadecimal digits" spellcheck="false" autocomplete="off" aria-describedby="product-help">
+        <p class="help" id="product-help">The vendor's opaque 16-byte product identifier, matching device policy. This is not an MCU family ID.</p>
+        <label for="base">Required execution base address</label>
+        <input id="base" type="text" required placeholder="e.g. 0x08004000" spellcheck="false" autocomplete="off" aria-describedby="range-help">
+        <p class="help" id="range-help">Decimal or 0x-prefixed hexadecimal. For HEX/ELF, base must equal the lowest included address, not the entry point. No included bytes will be silently dropped.</p>
+        <div class="columns">
+          <div>
+            <label for="end">Exclusive end address <span class="optional">(optional)</span></label>
+            <input id="end" type="text" placeholder="e.g. 0x08010000" spellcheck="false" autocomplete="off" aria-describedby="sparse-help">
+          </div>
+          <div>
+            <label for="fill">Fill byte <span class="optional">(optional)</span></label>
+            <input id="fill" type="text" placeholder="e.g. FF" maxlength="4" spellcheck="false" autocomplete="off" aria-describedby="sparse-help">
+          </div>
+        </div>
+        <p class="help" id="sparse-help">Supply both end and fill to permit gaps or trailing fill. End is excluded; fill is exactly two hex digits (00–FF, optionally 0x-prefixed). Without both, image bytes must be contiguous. Overlaps are always rejected.</p>
+      </fieldset>
+      <fieldset>
+        <legend><span class="step">3</span> Local signing key</legend>
+        <label for="key-file">Unencrypted PKCS#8 PEM file</label>
+        <input id="key-file" type="file" accept=".pem,.key" aria-describedby="key-help">
+        <label for="key-pem">Or paste the PEM private key</label>
+        <textarea id="key-pem" rows="5" placeholder="-----BEGIN PRIVATE KEY-----" spellcheck="false" autocomplete="off" autocapitalize="off" aria-describedby="key-help"></textarea>
+        <p class="help" id="key-help">Choose exactly one key source. ECDSA P-256 only, up to 64 KiB; encrypted PEM and SEC1 keys are unsupported. Key inputs and application references are cleared after every packing attempt. The public-key identifier is derived from SHA-256 of the uncompressed public point.</p>
+      </fieldset>
+      <div class="actions">
+        <button id="pack" type="submit">Sign &amp; build .suf2</button>
+        <button id="clear" type="button" class="secondary">Clear all</button>
+      </div>
+    </form>
+    <p id="status" role="status" aria-live="polite"></p>
+    <div id="error" class="error" role="alert" tabindex="-1" hidden></div>
+    <section id="result" aria-labelledby="result-title" hidden>
+      <h2 id="result-title">Package ready</h2>
+      <p>Signed, not encrypted. Confirm the product and execution range against your device policy before deployment.</p>
+      <dl>
+        <dt>Image size</dt><dd id="image-size"></dd>
+        <dt>Package size</dt><dd id="package-size"></dd>
+        <dt>Package ID</dt><dd id="package-id"></dd>
+        <dt>Signing-key ID</dt><dd id="signing-id"></dd>
+        <dt>Image SHA-256</dt><dd id="image-hash"></dd>
+      </dl>
+      <a id="download" class="download">Download .suf2</a>
+    </section>
+    <footer>
+      <p>Format version 1 · P-256 / SHA-256 · canonical low-S signature</p>
+      <p>A signing-key ID selects a key already provisioned on the device; it does not establish trust. A self-signed certificate is not a trust anchor.</p>
+    </footer>
+  </main>
+</body>
+</html>

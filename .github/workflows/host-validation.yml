@@ -1,0 +1,176 @@
+name: Host validation
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  dashboard:
+    name: Dashboard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Check and test dashboard
+        run: |
+          npm --prefix host/dashboard run checks
+          npm --prefix host/dashboard test
+
+      - name: Stage and verify public site
+        run: |
+          python3 tools/host/dashboard_site.py build --output build/dashboard-site --version 0.0.0
+          python3 tools/host/dashboard_site.py verify --output build/dashboard-site --version 0.0.0
+
+  host-apps:
+    name: Python + .NET (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+
+      - name: Install Python host
+        run: python -m pip install ./host/python
+
+      - name: Python tests
+        run: python -m unittest discover -s host/python/tests -v
+
+      - name: Build .NET CLI
+        run: dotnet build host/dotnet/Suf2.csproj -c Release
+
+      # selfcheck.py checks .NET output with the openssl CLI; the Ubuntu
+      # image has a known OpenSSL 3 build.
+      - name: .NET self-checks
+        if: runner.os == 'Linux'
+        run: python host/dotnet/selfcheck.py
+
+      - name: Cross-producer verification
+        if: runner.os != 'Windows'
+        run: python -m unittest discover -s host/shared/tests -v
+
+  python-minimum:
+    name: Python (3.10 minimum)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.10"
+
+      - name: Install Python host
+        run: python -m pip install ./host/python
+
+      - name: Python tests
+        run: python -m unittest discover -s host/python/tests -v
+
+  wheel-smoke:
+    name: Wheel smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Build wheel, install it in a clean venv, and pack an image
+        run: |
+          set -eu
+          python -m pip install build
+          python -m build --wheel --outdir "$RUNNER_TEMP/dist" host/python
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install "$RUNNER_TEMP"/dist/*.whl
+          cd "$RUNNER_TEMP"
+          venv/bin/suf2 --help
+          venv/bin/python - <<'PY'
+          from cryptography.hazmat.primitives import serialization
+          from cryptography.hazmat.primitives.asymmetric import ec
+          from pathlib import Path
+          key = ec.generate_private_key(ec.SECP256R1())
+          Path("key.pem").write_bytes(key.private_bytes(
+              serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
+          Path("app.bin").write_bytes(bytes(range(256)) * 4)
+          PY
+          venv/bin/suf2 pack --input app.bin --output app.suf2 --key key.pem \
+            --product-id 00112233445566778899aabbccddeeff --base 0x10011000
+          test "$(( $(wc -c < app.suf2) % 512 ))" -eq 0
+
+  tools:
+    name: Repository tools
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Syntax-check Python tools
+        run: python -m compileall -q tools host firmware/suf2 firmware/boards
+
+      - name: Syntax-check and lint shell scripts
+        run: tools/validation/syntax-check-shell.sh
+
+      - name: Release version rules
+        run: |
+          set -eu
+          test "$(tools/release/resolve-release-version.sh v1.2.3)" = 1.2.3
+          test "$(tools/release/resolve-release-version.sh v10.0.0)" = 10.0.0
+          for bad in 1.2.3 v1.2 v01.2.3 v1.2.3-rc1 v1.2.3.4; do
+            if tools/release/resolve-release-version.sh "$bad" 2>/dev/null; then
+              echo "::error::accepted invalid tag $bad"
+              exit 1
+            fi
+          done
