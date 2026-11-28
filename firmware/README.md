@@ -69,6 +69,17 @@ ctest --test-dir build/suf2-native --output-on-failure
 
 ### Building
 
+The quick way:
+
+```sh
+firmware/build.sh rp2040          # or rp2350, or all
+firmware/build.sh all --test      # also run the library and simulation tests
+firmware/build.sh --help
+```
+
+It fetches missing submodules, creates local test keys if there are none,
+and signs the example app with them. By hand, the same build is:
+
 ```sh
 python3 host/shared/generate-test-keys.py        # once: local test keys
 cmake -S firmware/boards/rp2040 -B build/rp2040 -G Ninja \
@@ -100,6 +111,17 @@ picotool 2.3 yourself.
    the installed copy and reboots into it. The LED blinks.
 4. Open the board's USB serial port and type `u`. The app reboots into the
    loader, ready for the next update.
+
+`firmware/flash.sh` does steps 1 and 3 for you. It waits for the drive to
+appear, matching its exact label, and copies the file:
+
+```sh
+firmware/flash.sh rp2040 --blink                  # loader by BOOTSEL drive, then blink
+firmware/flash.sh rp2350 --method swd --blink     # loader through a Debug Probe (OpenOCD)
+firmware/flash.sh rp2040 --method picotool        # loader with picotool
+firmware/flash.sh --app-only my_app.suf2          # app only, loader already running
+firmware/flash.sh rp2040 --blink --dry-run        # show the commands, write nothing
+```
 
 If a package is refused, the LED double-flashes and the drive reappears after
 about a second. `STATUS.TXT` says why.

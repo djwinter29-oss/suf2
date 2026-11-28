@@ -16,6 +16,26 @@ No tool offers an unsigned option.
 Open the [public dashboard](https://djwinter29-oss.github.io/suf2/) to try
 browser packing with a locally generated test key.
 
+## Running from the source tree
+
+Each script works from any directory and needs no install step:
+
+| Script | Runs |
+| --- | --- |
+| `host/run_python.sh ARGS` | the Python CLI (needs the `cryptography` package) |
+| `host/run_dotnet.sh ARGS` | the .NET CLI; builds it first if the sources changed |
+| `host/run_dashboard.sh [PORT]` | serves the dashboard at `http://127.0.0.1:8000/` |
+| `host/run_tests.sh` | every check listed under [Checks](#checks) |
+
+```sh
+python3 host/shared/generate-test-keys.py
+host/run_python.sh pack --input app.elf --output app.suf2 \
+    --key host/shared/local/signing-private.pem \
+    --product-id 00112233445566778899aabbccddeeff --base 0x10011000
+```
+
+`run_dotnet.sh` takes the same arguments.
+
 ## One conversion contract
 
 - Supply a 16-byte product ID as 32 hexadecimal digits, the intended execution
@@ -69,10 +89,12 @@ npm --prefix host/dashboard test
 PYTHONPATH=host/python/src python -m unittest discover -s host/shared/tests -v
 ```
 
-Run these from the repository root. The interoperability tests build BIN, HEX,
+Run these from the repository root, or run `host/run_tests.sh`, which skips
+.NET or the dashboard if `dotnet` or `npm` is missing. The interoperability tests build BIN, HEX,
 ELF32 and ELF64 packages with each producer, then independently verify the
 signature, manifest, image and block framing with Python's crypto library.
 They also exercise sparse conversion and wrong-curve rejection.
-The [host CI workflow](../.github/workflows/host-tests.yml) runs the same checks.
-The [Pages workflow](../.github/workflows/pages.yml) publishes only the explicit
-static asset list, never keys, fixtures or test-runner caches.
+The [host validation workflow](../.github/workflows/host-validation.yml) runs
+the same checks on Linux, macOS and Windows for every pull request. Releases
+attach the Python wheel, standalone .NET builds and an offline dashboard
+archive; see [Releasing SUF2](../docs/deployment/releasing.md).

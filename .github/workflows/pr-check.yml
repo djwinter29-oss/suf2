@@ -1,0 +1,22 @@
+name: PR Check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: pr-check-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  firmware-validation:
+    name: Firmware validation
+    uses: ./.github/workflows/firmware-validation.yml
+
+  host-validation:
+    name: Host validation
+    uses: ./.github/workflows/host-validation.yml

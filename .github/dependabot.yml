@@ -1,0 +1,15 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /host/python
+    schedule:
+      interval: weekly
+
+  # Pinned action SHAs are bumped together with their version comments.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  # Submodules are not listed: Dependabot would move them to a branch head,
+  # not a release tag. Bump pico-sdk and Mbed TLS by hand.

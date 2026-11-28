@@ -1,0 +1,177 @@
+name: Release
+
+on:
+  push:
+    tags:
+      # Tag filters are globs, not regular expressions. This matches any
+      # vX.Y.Z-looking tag; resolve-release-version.sh rejects the rest.
+      - "v[0-9]*.[0-9]*.[0-9]*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to rehearse, for example v1.2.3 (builds artifacts only; creates no tag or release)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Resolve version
+        id: version
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -eu
+          VERSION=$(tools/release/resolve-release-version.sh "$TAG")
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  firmware-validation:
+    name: Firmware validation
+    needs: version
+    uses: ./.github/workflows/firmware-validation.yml
+
+  host-validation:
+    name: Host validation
+    needs: version
+    uses: ./.github/workflows/host-validation.yml
+
+  dotnet-packages:
+    name: .NET CLI
+    needs: [version, host-validation]
+    uses: ./.github/workflows/publish-dotnet.yml
+    with:
+      tag: ${{ needs.version.outputs.tag }}
+
+  python-package:
+    name: Python wheel
+    needs: [version, host-validation]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Build wheel
+        env:
+          SETUPTOOLS_SCM_PRETEND_VERSION: ${{ needs.version.outputs.version }}
+        run: python -m pip wheel --no-deps host/python --wheel-dir dist
+
+      - name: Verify installed wheel
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -eu
+          python -m venv build/wheel-check
+          build/wheel-check/bin/pip install dist/*.whl
+          cd build
+          wheel-check/bin/suf2 --help > /dev/null
+          wheel-check/bin/python -c \
+            "import os; from importlib.metadata import version; assert version('suf2-host') == os.environ['VERSION']"
+
+      - name: Checksum wheel
+        working-directory: dist
+        run: |
+          set -eu
+          set -- ./*.whl
+          test "$#" -eq 1
+          sha256sum -- *.whl > SHA256SUMS-python.txt
+
+      - name: Upload Python package
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-python
+          path: dist/*
+          if-no-files-found: error
+
+  dashboard-package:
+    name: Dashboard archive
+    needs: [version, host-validation]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Stage, verify and archive dashboard
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -eu
+          site="build/suf2-dashboard-v$VERSION"
+          python3 tools/host/dashboard_site.py build --output "$site" --version "$VERSION"
+          python3 tools/host/dashboard_site.py verify --output "$site" --version "$VERSION"
+          mkdir dist
+          (cd build && zip -qr "../dist/suf2-dashboard-v$VERSION.zip" "suf2-dashboard-v$VERSION")
+          (cd dist && sha256sum "suf2-dashboard-v$VERSION.zip" > SHA256SUMS-dashboard.txt)
+
+      - name: Upload dashboard archive
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-dashboard
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub release
+    needs: [version, firmware-validation, host-validation, dotnet-packages, python-package, dashboard-package]
+    # A manual run is a rehearsal; only a pushed tag publishes.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Checkout release gate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Require a passing PR Check on the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: python3 tools/release/require_release_checks.py --sha "$SOURCE_SHA"
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: SUF2 ${{ github.ref_name }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          files: dist/*
+          fail_on_unmatched_files: true
+          body: |
+            Host tools for packing SUF2 images: the Python wheel, standalone .NET CLI builds and an offline copy of the dashboard. Each archive has a `SHA256SUMS` file next to it.
+
+            **No loader binaries are attached.** A SUF2 loader embeds the keys it trusts and the product ID it accepts, so every product must build its own loader from this tag with its own keys. See `docs/deployment/releasing.md`.

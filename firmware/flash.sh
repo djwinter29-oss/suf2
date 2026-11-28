@@ -62,7 +62,7 @@ dir=$repo/build/$board
 die() { echo "error: $*" >&2; exit 1; }
 
 run() {
-    echo "+ $*"
+    printf '+'; printf ' %q' "$@"; echo
     [[ $dry == 1 ]] || "$@"
 }
 

@@ -25,5 +25,6 @@ These documents describe general security considerations. They are intended as s
 | [security/](security/) | [security-design.md](security/security-design.md) | What SUF2 v0.1 does about each threat, what it leaves to the platform, and what it accepts |
 | [implementers/](implementers/) | [design-guidelines.md](implementers/design-guidelines.md) | How to build a receiver and loader safely |
 | [implementers/](implementers/) | [platform-integration.md](implementers/platform-integration.md) | Preliminary SUF2 integration notes for RP2040, RP2350 and future platforms |
+| [deployment/](deployment/) | [releasing.md](deployment/releasing.md) | What CI checks, how to cut a release, and the repository setup publishing needs |
 
 Suggested reading order: start with [Why SUF2?](why-suf2.md) for the motivation, then read the reusable threat model and trust chain. Continue with the specification and the security design, then the design guidelines and the conformance catalogue. Consult the platform integration notes when assessing a specific board.

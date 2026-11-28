@@ -91,15 +91,15 @@ write `bytes` with `node:fs`; no private key is returned.
 ## GitHub Pages
 
 The public dashboard is at <https://djwinter29-oss.github.io/suf2/>.
-Pages serves the `gh-pages` branch, which holds only the six public static
-assets. The host CLIs, local keys and test fixtures are never published.
+The site is updated on each release, not on every push.
+The [Pages workflow](../../.github/workflows/publish-dashboard.yml) checks out
+the release tag, runs the dashboard checks and tests, and deploys only the six
+public static assets plus a `version.txt`. The host CLIs, local keys and test
+fixtures are never published. `tools/host/dashboard_site.py` stages that file
+list and refuses to deploy if anything else is in it.
 
-The [Pages workflow](../../.github/workflows/pages.yml) runs the dashboard
-checks and tests, then force-pushes a fresh one-commit `gh-pages` branch with
-that explicit asset list. It runs on dashboard changes pushed to `main` or
-`master`, or by manual dispatch. Its only extra permission is
-`contents: write`, which it needs to push the branch.
-
-The workflow does not enable Pages itself. No repository settings need to be
-changed to run locally. When hosted, the dashboard is served at the repository's
-Pages root, not a `/host/dashboard` subpath.
+The Pages source must be set to *GitHub Actions*; see
+[Releasing SUF2](../../docs/deployment/releasing.md#one-time-repository-setup).
+Each release also attaches the same files as `suf2-dashboard-vX.Y.Z.zip` for
+offline use. The dashboard is served at the repository's Pages root, not a
+`/host/dashboard` subpath.
