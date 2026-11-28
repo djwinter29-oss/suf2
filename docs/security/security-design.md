@@ -2,6 +2,23 @@
 
 This page maps each threat in the [threat model](../reference/threat-model.md) to SUF2 v0.1's design, including what it deliberately leaves to the platform, integrator or a future version. The generic boot trust model is in [trust-chain.md](../reference/trust-chain.md); preliminary board notes are in [platform-integration.md](../implementers/platform-integration.md). The wire format is in [suf2-specification.md](../spec/suf2-specification.md), implementation guidance is in [design-guidelines.md](../implementers/design-guidelines.md), and planned tests are in [conformance.md](../spec/conformance.md).
 
+## Host packer boundary
+
+The [host prototypes](../../host/README.md) provide Python and .NET CLIs and a
+static browser dashboard. All three require signing; none currently implements
+optional encryption. Host tests do not establish receiver or platform assurance.
+
+The dashboard reads selected firmware and private keys locally and downloads
+the package. It sends neither to a server and does not retain keys in browser
+storage. That does not make browser signing inherently trusted: the deployed
+page, browser and extensions are part of the signing boundary. A compromised
+page could steal a selected key or sign different firmware. Production signing
+belongs in a protected offline pipeline or hardware signer.
+
+Shared examples contain public keys and self-signed certificates only; private
+test keys are generated locally. Certificates are containers, not a new trust
+model: SUF2 still selects a provisioned P-256 key by its point-derived identifier.
+
 ## What SUF2 v0.1 covers
 
 SUF2 is a firmware package format and bootloader verification profile. Version 0.1:

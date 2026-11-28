@@ -1,10 +1,19 @@
 # SUF2 (Secured UF2)
 
-> **Status: design stage.** Nothing here is implemented yet, and nothing is frozen or security-reviewed. Do not use it to protect real products.
+> **Status: draft design with prototype host tools.** The device loader is not implemented, and nothing is frozen or security-reviewed. Do not use it to protect real products.
 
 SUF2 is a profile of [UF2](https://github.com/microsoft/uf2) that makes authentication mandatory for firmware updates, with optional encryption of the update in transit.
 
 Draft documents are in [docs/](docs/README.md): threat model, trust chain, specification, design guidelines, conformance catalogue and [why SUF2](docs/why-suf2.md).
+
+## Host tools
+
+[host/](host/README.md) contains Python and .NET command-line packers and a
+browser dashboard deployable to GitHub Pages. Each converts BIN, HEX or ELF
+firmware into a signed SUF2 package. Browser processing is local; firmware and
+keys are not sent to a server. These first prototypes support signing only,
+not optional encryption. [Shared examples](host/shared/README.md) document
+PEM public keys and certificates and generate private test keys locally.
 
 ## Goals, in priority order
 

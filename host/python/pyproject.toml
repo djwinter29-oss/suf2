@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "suf2-host"
+version = "0.1.0"
+description = "Draft SUF2 signed firmware packer"
+requires-python = ">=3.10"
+dependencies = ["cryptography>=43"]
+
+[project.scripts]
+suf2 = "suf2.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

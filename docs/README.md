@@ -1,5 +1,8 @@
 # SUF2 documentation
 
+For runnable host prototypes, see [host tools](../host/README.md): Python and
+.NET CLI packers, a browser dashboard, and shared key-format examples.
+
 ## Reusable security references
 
 These documents describe general security considerations. They are intended as stable references, independent of the SUF2 format.
