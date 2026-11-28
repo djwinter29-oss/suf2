@@ -10,7 +10,7 @@ New to the catalogue? Run V1–V5, then S1 and S4, I1–I2, T1–T2, T18a–T18c
 
 Record every case as **Pass**, **Fail**, **N/A** (with the reason) or **Not run** (for example, a needed hook is missing). A receiver may claim to pass sections 1–5 only if every case that applies to it passes and each N/A is explained. Sections 6 and 7 are reported separately, because they depend on the platform and the signing pipeline.
 
-Section 6 cites the [design guidelines](security/design-guidelines.md) as *DG n* (section n) and the [trust chain](reference/trust-chain.md) as *TC n* (section n, with requirement numbers in brackets).
+Section 6 cites the [design guidelines](../implementers/design-guidelines.md) as *DG n* (section n) and the [trust chain](../reference/trust-chain.md) as *TC n* (section n, with requirement numbers in brackets).
 
 ## Result terms
 

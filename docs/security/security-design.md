@@ -1,6 +1,6 @@
 # SUF2 security design
 
-This page maps each threat in the [threat model](../reference/threat-model.md) to SUF2 v0.1's design, including what it deliberately leaves to the platform, integrator or a future version. The generic boot trust model is in [trust-chain.md](../reference/trust-chain.md); preliminary board notes are in [platform-integration.md](platform-integration.md). The wire format is in [suf2-specification.md](../suf2-specification.md), implementation guidance is in [design-guidelines.md](design-guidelines.md), and planned tests are in [conformance.md](../conformance.md).
+This page maps each threat in the [threat model](../reference/threat-model.md) to SUF2 v0.1's design, including what it deliberately leaves to the platform, integrator or a future version. The generic boot trust model is in [trust-chain.md](../reference/trust-chain.md); preliminary board notes are in [platform-integration.md](../implementers/platform-integration.md). The wire format is in [suf2-specification.md](../spec/suf2-specification.md), implementation guidance is in [design-guidelines.md](../implementers/design-guidelines.md), and planned tests are in [conformance.md](../spec/conformance.md).
 
 ## What SUF2 v0.1 covers
 
@@ -16,7 +16,7 @@ Not in v0.1: anti-rollback, key revocation and rotation, encryption at rest, mul
 
 ## Update lifecycle in SUF2 v0.1
 
-The generic [secure boot lifecycle](../reference/secure-boot-lifecycle.md) separates authorization, installation and boot eligibility, then follows the boot decision through handoff. SUF2 uses the staged approach described in [design guidelines sections 2-4](design-guidelines.md#2-stage-verify-then-install):
+The generic [secure boot lifecycle](../reference/secure-boot-lifecycle.md) separates authorization, installation and boot eligibility, then follows the boot decision through handoff. SUF2 uses the staged approach described in [design guidelines sections 2-4](../implementers/design-guidelines.md#2-stage-verify-then-install):
 
 - Receive the complete candidate into staging, then check its signature, digests, local policy and, when encrypted, its GCM tag.
 - Re-verify staging before destructive writes. Install under a journal, treating journal fields as untrusted resumption input.
@@ -57,7 +57,7 @@ Treatment values:
 - **Accepted:** known and not addressed in v0.1.
 - **External:** belongs to systems outside the bootloader, such as the signing pipeline or delivery service.
 
-References are sections of [suf2-specification.md](../suf2-specification.md), [design-guidelines.md](design-guidelines.md) (DG) or the generic [trust-chain requirements](../reference/trust-chain.md#2-requirements-for-a-verified-boot-claim) (TC), and cases in [conformance.md](../conformance.md).
+References are sections of [suf2-specification.md](../spec/suf2-specification.md), [design-guidelines.md](../implementers/design-guidelines.md) (DG) or the generic [trust-chain requirements](../reference/trust-chain.md#2-requirements-for-a-verified-boot-claim) (TC), and cases in [conformance.md](../spec/conformance.md).
 
 ### Update input
 

@@ -22,7 +22,7 @@ Draft documents are in [docs/](docs/README.md): threat model, trust chain, speci
 
 ## Trust boundary
 
-An authenticated file is not an enforced update. Enforcement requires a platform root of trust and a protected bootloader and policy. The generic model is in [trust-chain.md](docs/reference/trust-chain.md); candidate board-specific notes are in [platform-integration.md](docs/security/platform-integration.md).
+An authenticated file is not an enforced update. Enforcement requires a platform root of trust and a protected bootloader and policy. The generic model is in [trust-chain.md](docs/reference/trust-chain.md); candidate board-specific notes are in [platform-integration.md](docs/implementers/platform-integration.md).
 
 The project aims to provide the specification and reusable verification code. Each platform integration documents its own chain of trust:
 

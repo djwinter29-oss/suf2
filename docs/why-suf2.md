@@ -53,4 +53,4 @@ The cost is limited flexibility: v0.1 supports one image and a fixed set of algo
 
 ## Project status
 
-SUF2 is a design-stage proposal. The format and receiver behavior are drafts and have not received an independent security review. See the [specification](suf2-specification.md), [security design](security/security-design.md), [design guidelines](security/design-guidelines.md) and [conformance catalogue](conformance.md) for details.
+SUF2 is a design-stage proposal. The format and receiver behavior are drafts and have not received an independent security review. See the [specification](spec/suf2-specification.md), [security design](security/security-design.md), [design guidelines](implementers/design-guidelines.md) and [conformance catalogue](spec/conformance.md) for details.

@@ -1,6 +1,6 @@
 # SUF2 secure design guidelines
 
-Guidance for implementers of SUF2 receivers, loaders and host tools. It complements [suf2-specification.md](../suf2-specification.md) (what must hold) with how to build it safely. Terms follow the generic threat model in [threat-model.md](../reference/threat-model.md); what SUF2 does about each threat is in [security-design.md](security-design.md).
+Guidance for implementers of SUF2 receivers, loaders and host tools. It complements [suf2-specification.md](../spec/suf2-specification.md) (what must hold) with how to build it safely. Terms follow the generic threat model in [threat-model.md](../reference/threat-model.md); what SUF2 does about each threat is in [security-design.md](../security/security-design.md).
 
 ## 1. Parsing untrusted input
 

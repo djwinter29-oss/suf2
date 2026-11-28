@@ -40,7 +40,7 @@ flowchart TB
 
 This document defines the package format, the receiver behavior and the check made on every boot. Encryption protects the image in transit only; installed firmware is plaintext. SUF2 does not define a bootloader, a transport other than UF2 blocks, key distribution, or anti-rollback.
 
-The specification answers the threat model in [threat-model.md](reference/threat-model.md); the mapping from threats to specification sections is in [security-design.md](security/security-design.md). It relies on the platform guarantees in [trust-chain.md](reference/trust-chain.md).
+The specification answers the threat model in [threat-model.md](../reference/threat-model.md); the mapping from threats to specification sections is in [security-design.md](../security/security-design.md). It relies on the platform guarantees in [trust-chain.md](../reference/trust-chain.md).
 
 ## 2. Conventions
 
@@ -254,7 +254,7 @@ Before installing a complete candidate, the receiver MUST make these checks in o
 
 A failure MUST NOT fall back to a weaker mode, such as treating an encrypted package as signed-only.
 
-Staging and decryption storage are platform choices; they MUST preserve these checks and the verified bytes through installation. Implementation guidance belongs in [design-guidelines.md](security/design-guidelines.md#2-stage-verify-then-install).
+Staging and decryption storage are platform choices; they MUST preserve these checks and the verified bytes through installation. Implementation guidance belongs in [design-guidelines.md](../implementers/design-guidelines.md#2-stage-verify-then-install).
 
 ### 9.2 Boot verification
 
@@ -267,7 +267,7 @@ The loader retains the exact 256-byte manifest at a platform-defined location as
 
 If any step fails, the loader MUST NOT start the application and MUST enter recovery.
 
-The stored digest, encryption-key identifier, nonce and tag are not compared with transit data again, because that data no longer exists. Their structure is checked with the rest of the manifest, and the signature still covers them. The encryption requirement (section 9.3) applies when a package is accepted, not at boot. The platform MUST also keep the checked bytes unchanged until they run; see [trust-chain.md](reference/trust-chain.md#2-requirements-for-a-verified-boot-claim).
+The stored digest, encryption-key identifier, nonce and tag are not compared with transit data again, because that data no longer exists. Their structure is checked with the rest of the manifest, and the signature still covers them. The encryption requirement (section 9.3) applies when a package is accepted, not at boot. The platform MUST also keep the checked bytes unchanged until they run; see [trust-chain.md](../reference/trust-chain.md#2-requirements-for-a-verified-boot-claim).
 
 ### 9.3 Encryption policy
 
@@ -275,7 +275,7 @@ A receiver MAY be configured to require encryption. A signed-only package is the
 
 ## 10. Installation (informative)
 
-Installation is platform-specific and outside the portable core. The recommended pattern is stage, verify, journal, copy in bounded steps, verify the installed bytes, then reboot. See [design-guidelines.md](security/design-guidelines.md).
+Installation is platform-specific and outside the portable core. The recommended pattern is stage, verify, journal, copy in bounded steps, verify the installed bytes, then reboot. See [design-guidelines.md](../implementers/design-guidelines.md).
 
 ## 11. Versioning
 
@@ -289,7 +289,7 @@ Anti-rollback or security counters, timestamps as authorization, extensible tags
 
 ## 13. Open items
 
-The format uses the fixed manifest described here rather than wrapping an MCUboot image; the rationale is in [why-suf2.md](why-suf2.md#why-a-fixed-manifest). Before freezing, review this layout independently and publish test vectors. The remaining implementation and integration work does not add format fields:
+The format uses the fixed manifest described here rather than wrapping an MCUboot image; the rationale is in [why-suf2.md](../why-suf2.md#why-a-fixed-manifest). Before freezing, review this layout independently and publish test vectors. The remaining implementation and integration work does not add format fields:
 
 | Task | Notes |
 | --- | --- |
