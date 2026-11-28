@@ -2,11 +2,13 @@
 
 These are preliminary notes for applying the generic [secure boot trust-chain requirements](../reference/trust-chain.md) to candidate SUF2 demo platforms. They are not evidence of a verified-boot claim. Each claim must be checked against the selected chip documentation, actual device configuration and integration tests.
 
+A reference loader for both chips is in [firmware/](../../firmware/README.md). It shows the update and boot checks; it does not configure any chip security feature.
+
 ## RP2040
 
 - The RP2040 has no ROM secure-boot mechanism. BOOTSEL, SWD and external-flash access can allow replacement of the loader or its trust material.
 - A demo can require signed updates and detect changes to an image at boot, provided the loader itself is intact. This does not protect against an attacker who can replace the loader or alter the boot path.
-- The bootstrap `secure-pico.uf2` installs the loader through stock BOOTSEL; that installation does not make the loader immutable.
+- The loader (`suf2_loader.uf2`) is installed through stock BOOTSEL. That does not make the loader immutable, and BOOTSEL stays available afterwards.
 
 ## RP2350
 

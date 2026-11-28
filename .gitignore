@@ -67,3 +67,6 @@ host/shared/local/
 *.pfx
 *.p12
 .tsupgrader/
+
+# Firmware build output
+build/

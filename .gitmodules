@@ -1,3 +1,6 @@
 [submodule "firmware/lib/pico-sdk"]
 	path = firmware/lib/pico-sdk
 	url = https://github.com/raspberrypi/pico-sdk.git
+[submodule "firmware/lib/mbedtls"]
+	path = firmware/lib/mbedtls
+	url = https://github.com/Mbed-TLS/mbedtls.git

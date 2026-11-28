@@ -1,6 +1,6 @@
 # SUF2 (Secured UF2)
 
-> **Status: draft design with prototype host tools.** The device loader is not implemented, and nothing is frozen or security-reviewed. Do not use it to protect real products.
+> **Status: draft design with prototype host tools and firmware.** The RP2040/RP2350 loader is tested on the host only, and nothing is frozen or security-reviewed. Do not use it to protect real products.
 
 SUF2 is a profile of [UF2](https://github.com/microsoft/uf2) that makes authentication mandatory for firmware updates, with optional encryption of the update in transit.
 
@@ -14,6 +14,12 @@ firmware into a signed SUF2 package. Browser processing is local; firmware and
 keys are not sent to a server. These first prototypes support signing only,
 not optional encryption. [Shared examples](host/shared/README.md) document
 PEM public keys and certificates and generate private test keys locally.
+
+## Firmware
+
+[firmware/](firmware/README.md) contains the portable C verifier library
+(using Mbed TLS) and a USB drive loader for the RP2040 and RP2350, built with
+the Pico SDK. Libraries are git submodules in `firmware/lib`.
 
 ## Goals, in priority order
 

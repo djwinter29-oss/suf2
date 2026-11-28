@@ -1,7 +1,9 @@
 # SUF2 documentation
 
 For runnable host prototypes, see [host tools](../host/README.md): Python and
-.NET CLI packers, a browser dashboard, and shared key-format examples.
+.NET CLI packers, a browser dashboard, and shared key-format examples. The
+device side, a C verifier library and an RP2040/RP2350 loader, is in
+[firmware](../firmware/README.md).
 
 ## Reusable security references
 
