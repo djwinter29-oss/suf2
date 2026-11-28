@@ -2,7 +2,7 @@
 
 For runnable host prototypes, see [host tools](../host/README.md): Python and
 .NET CLI packers, a browser dashboard, and shared key-format examples. The
-device side, a C verifier library and an RP2040/RP2350 loader, is in
+device side, a C verifier library with RP2040/RP2350 and experimental ESP32-S3 integrations, is in
 [firmware](../firmware/README.md).
 
 ## Reusable security references
@@ -24,7 +24,7 @@ These documents describe general security considerations. They are intended as s
 | [spec/](spec/) | [conformance.md](spec/conformance.md) | Draft portable conformance cases, planned producer checks and platform assurance tests; vectors are future work |
 | [security/](security/) | [security-design.md](security/security-design.md) | What SUF2 v0.1 does about each threat, what it leaves to the platform, and what it accepts |
 | [implementers/](implementers/) | [design-guidelines.md](implementers/design-guidelines.md) | How to build a receiver and loader safely |
-| [implementers/](implementers/) | [platform-integration.md](implementers/platform-integration.md) | Preliminary SUF2 integration notes for RP2040, RP2350 and future platforms |
+| [implementers/](implementers/) | [platform-integration.md](implementers/platform-integration.md) | Preliminary SUF2 integration notes for RP2040, RP2350, ESP32-S3 and future platforms |
 | [deployment/](deployment/) | [releasing.md](deployment/releasing.md) | What CI checks, how to cut a release, and the repository setup publishing needs |
 
 Suggested reading order: start with [Why SUF2?](why-suf2.md) for the motivation, then read the reusable threat model and trust chain. Continue with the specification and the security design, then the design guidelines and the conformance catalogue. Consult the platform integration notes when assessing a specific board.

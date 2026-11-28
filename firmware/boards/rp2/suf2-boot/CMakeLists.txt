@@ -1,0 +1,1 @@
+suf2_rp2_add_loader(suf2_loader)

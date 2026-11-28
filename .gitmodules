@@ -4,3 +4,9 @@
 [submodule "firmware/lib/mbedtls"]
 	path = firmware/lib/mbedtls
 	url = https://github.com/Mbed-TLS/mbedtls.git
+[submodule "firmware/lib/esp-idf"]
+	path = firmware/lib/esp-idf
+	url = https://github.com/espressif/esp-idf.git
+[submodule "firmware/lib/tinyusb"]
+	path = firmware/lib/tinyusb
+	url = https://github.com/hathach/tinyusb.git

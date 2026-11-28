@@ -70,3 +70,4 @@ host/shared/local/
 
 # Firmware build output
 build/
+.bundle/

@@ -4,20 +4,22 @@
 > simulation) but not yet tried on real boards. Do not ship it in products.
 
 This folder holds the device side of SUF2: a portable verifier library, and a
-USB loader for the Raspberry Pi RP2040 and RP2350 that uses it.
+USB loaders for Raspberry Pi RP2040/RP2350 and an experimental ESP32-S3 integration.
 
 ```
 firmware/
 ├── suf2/                 portable C library: receive, verify, boot-check
-│   ├── include/suf2/     public API (suf2.h) and crypto backend interface
-│   ├── src/              the library (no heap, no platform code)
-│   ├── port/             Mbed TLS crypto backend and its config
-│   └── tests/            native tests, driven from Python
+│   ├── include/suf2/     firmware-facing API and porting contracts
+│   ├── src/              verifier, staged installer and virtual FAT16 drive (no heap or platform code)
+│   └── tests/            Ceedling unit tests and native crypto tests
 ├── boards/
-│   ├── rp2-common/       loader, app helper, example app and CMake shared by both chips
-│   ├── rp2040/           CMake project for RP2040 (Pico)
-│   └── rp2350/           CMake project for RP2350 (Pico 2, Arm secure mode)
-└── lib/                  git submodules: pico-sdk, mbedtls
+│   ├── rp2/              one CMake project for both Raspberry Pi chips
+│   │   ├── suf2-boot/    bootloader, app helper, crypto port and simulation tests
+│   │   └── blink/        example application
+│   └── esp32s3/          shared ESP-IDF configuration and partition layout
+│       ├── suf2-boot/    custom second-stage bootloader, USB recovery app and ports
+│       └── blink/        native ESP-IDF example application
+└── lib/                  git submodules: pico-sdk, mbedtls, esp-idf, tinyusb
 ```
 
 ## Getting the libraries
@@ -32,11 +34,11 @@ git -C firmware/lib/pico-sdk submodule update --init lib/tinyusb
 
 You also need CMake 3.13 or newer, Ninja or Make, Python 3 with
 `cryptography`, a host C compiler for the tests and `arm-none-eabi-gcc` for
-the boards.
+the RP2 boards. ESP32-S3 setup is described below. Ceedling unit tests also need Ruby and Bundler.
 
 ## The library
 
-`suf2.h` is the whole interface. You give it a staging backend (write a
+`suf2.h` defines the receiver/verifier API. You give it a staging backend (write a
 256-byte chunk, read bytes back) and a policy (product ID, the one load
 address the device accepts, the largest image, the trusted keys). Then:
 
@@ -49,15 +51,73 @@ address the device accepts, the largest image, the trusted keys). Then:
    installing, `suf2_verify_boot` on the installed copy. Run
    `suf2_verify_boot` on every boot too.
 
-Crypto goes through `suf2_crypto.h` (SHA-256 and P-256 verify). The default
-backend uses Mbed TLS with a minimal config; swap it for a hardware
-accelerator by providing those four functions.
+The public headers in `suf2/include/suf2/` define the firmware-facing API
+(`suf2.h`, including storage callbacks) and the porting contract
+(`suf2_crypto.h`, SHA-256 and P-256 verification). Two reusable helpers also
+have public APIs:
+
+- [suf2_store.h](suf2/include/suf2/suf2_store.h): staged NOR-flash installation,
+  retained-manifest journal and commit record. It supports 4 KiB erase sectors
+  and 256-byte programming units; provide read, erase and verified-program
+  callbacks, disjoint region offsets, and an erase bitmap. Initialization
+  validates the layout. The caller owns all buffers and state.
+- [suf2_disk.h](suf2/include/suf2/suf2_disk.h): virtual FAT16 drive with
+  `SUF2INFO.TXT` and `STATUS.TXT`. Provide text renderers and a complete-sector
+  receive callback. The USB stack stays outside the library.
+
+These headers contain no platform, TinyUSB or Mbed TLS headers. Both helpers
+must be initialized before use, and calls on each context must be serialized.
+Partial disk writes must arrive in order without interleaving.
+
+The core's embedded CMake target has no crypto implementation or Mbed TLS
+dependency. The [RP2 example port](boards/rp2/suf2-boot/port/README.md) owns the Mbed TLS
+backend, its minimal configuration, and its build wiring. Another platform
+provides those four crypto functions and the storage callbacks in its own
+integration. Native tests reuse the RP2 example's crypto port.
 
 The library accepts signed packages only. An encrypted package passes the
 signature check and is then refused with `SUF2_E_NO_DECRYPTION_KEY`, because
 no decryption backend exists yet.
 
-Native tests (AddressSanitizer and UBSan on):
+### Unit tests with Ceedling
+
+The [Ceedling project](suf2/project.yml) uses Unity assertions and CMock for
+the crypto contract. It runs on the host without Pico SDK, Mbed TLS, hardware,
+or signing keys. The pinned gems are in [Gemfile](suf2/Gemfile) and
+[Gemfile.lock](suf2/Gemfile.lock).
+
+Install Ruby 3.3 and Bundler, then the test dependencies once:
+
+```sh
+gem install bundler -v 2.5.22 --no-document
+cd firmware/suf2
+bundle install
+```
+
+Some Linux distributions call Bundler `bundle3.3`; use that command instead
+of `bundle` if needed. The runner resolves Bundler through Ruby and works
+with either executable naming convention.
+
+From the repository root:
+
+```sh
+tools/firmware/run_unit_tests.sh                 # all unit tests
+tools/firmware/run_unit_tests.sh test:suf2_store  # one module
+tools/firmware/run_unit_tests.sh clobber         # clear generated test outputs
+tools/firmware/build.sh --test-only              # Ceedling + native + simulation
+```
+
+Tests are in `suf2/tests/unit/`, and generated mocks, executables and JUnit
+reports go into ignored `build/ceedling-suf2/`. The tests exercise manifest
+parsing, crypto-error propagation and cleanup, storage bounds and erase
+tracking, and virtual-drive transfers.
+
+CMock does not verify cryptographic algorithms: the native tests below use
+the real Mbed TLS backend, and the RP2 simulation checks installation and
+power-loss recovery. All three suites run in firmware CI; failures are not
+silently skipped.
+
+### Native crypto tests
 
 ```sh
 cmake -S firmware/suf2 -B build/suf2-native -G Ninja
@@ -72,8 +132,8 @@ ctest --test-dir build/suf2-native --output-on-failure
 The quick way:
 
 ```sh
-tools/firmware/build.sh rp2040          # or rp2350, or all
-tools/firmware/build.sh all --test      # also run the library and simulation tests
+tools/firmware/build.sh rp2040          # or rp2350
+tools/firmware/build.sh rp2350 --test   # also run the library and simulation tests
 tools/firmware/build.sh --help
 ```
 
@@ -82,13 +142,17 @@ and signs the example app with them. By hand, the same build is:
 
 ```sh
 python3 host/shared/generate-test-keys.py        # once: local test keys
-cmake -S firmware/boards/rp2040 -B build/rp2040 -G Ninja \
+cmake -S firmware/boards/rp2 -B build/rp2040 -G Ninja -DSUF2_BOARD=rp2040 \
       -DSUF2_SIGNING_KEY=$PWD/host/shared/local/signing-private.pem
 cmake --build build/rp2040
 ```
 
-Use `firmware/boards/rp2350` and `build/rp2350` for the RP2350. The build
-produces:
+For RP2350, use the same source folder with `-DSUF2_BOARD=rp2350` and
+`-B build/rp2350`. Keep separate build directories for the two chips.
+The script accepts `rp2040`, `rp2350`, `esp32s3`, or `all`; `all` includes
+ESP32-S3 and requires its installed SDK tools. After upgrading from the old RP2
+source folders, use `--clean` on each selected board to recreate its build cache.
+The build produces:
 
 | File | What it is |
 | --- | --- |
@@ -190,12 +254,18 @@ step 2, which takes a few milliseconds, leaves no journal: the old app no
 longer boots, the loader stays in update mode, and you copy the file again.
 The loader itself is never written.
 
-The flash simulation in `boards/rp2-common/tests` runs the real storage and
-USB drive code against simulated NOR flash, including a power cut at every
+The RP2 `flash_store.c` now supplies only hardware flash callbacks and wiring;
+the journal and install flow live in `suf2/src/suf2_store.c`. Similarly,
+`msc_disk.c` supplies TinyUSB callbacks, while `suf2/src/suf2_disk.c` renders
+the volume and routes complete sectors. Board-specific USB descriptors,
+boot-vector checks, update-request handling and the main loop stay in RP2.
+
+The flash simulation in `boards/rp2/suf2-boot/tests` runs these adapters and the reusable
+storage/drive code against simulated NOR flash, including a power cut at every
 install step:
 
 ```sh
-cmake -S firmware/boards/rp2-common/tests -B build/rp2-sim -G Ninja
+cmake -S firmware/boards/rp2/suf2-boot/tests -B build/rp2-sim -G Ninja
 cmake --build build/rp2-sim
 ctest --test-dir build/rp2-sim --output-on-failure
 ```
@@ -224,6 +294,30 @@ On RP2040 the slot starts with the app's 256-byte boot2 copy, and the
 vector table is at `0x10011100`. On RP2350 the vector table is at the start
 of the slot.
 
+## The ESP32-S3 integration
+
+See the [ESP32-S3 board guide](boards/esp32s3/README.md) for SDK setup, partition
+layout, native USB wiring, keys, signing and recovery:
+
+```sh
+git submodule update --init --recursive firmware/lib/esp-idf
+git submodule update --init firmware/lib/tinyusb
+firmware/lib/esp-idf/install.sh esp32s3
+tools/firmware/build.sh esp32s3
+tools/firmware/flash.sh esp32s3 --port /dev/ttyUSB0 --blink --dry-run
+```
+
+It has separate `suf2-boot/` and `blink/` ESP-IDF projects. The custom second-stage
+bootloader verifies committed SUF2 metadata and the installed image on every
+boot, then exposes only one authorized partition to IDF's fallback search.
+The recovery application reuses the portable store/disk and the RP2 Mbed TLS
+backend source; the bootloader uses ROM SHA and micro-ecc.
+
+This is an experimental native-container profile: sign the complete ESP-IDF
+application BIN with execution-window base `0x42000000`, not a physical partition
+offset or flat ELF/HEX conversion. It is not a flat-image conformance claim.
+Never use the blink project's default flash command to replace the loader.
+
 ## Security limits
 
 Read these before relying on the loader.
@@ -237,10 +331,14 @@ Read these before relying on the loader.
   decision and is not automated here. See
   [platform integration](../docs/implementers/platform-integration.md).
 - **Signed only.** Encrypted packages are refused.
+- **ESP32-S3 hardware security is not configured.** No eFuses are burned. ROM
+  download, debug and flash access can replace the bootstrap chain and keys;
+  the build rejects automatic provisioning and validation-bypass configurations.
 - **No anti-rollback.** An older, correctly signed package installs.
 - **Test USB IDs.** The default VID/PID are for testing only.
 
 ## License
 
 BSD-3-Clause. pico-sdk and TinyUSB are BSD/MIT licensed; Mbed TLS is
-Apache-2.0 or GPL-2.0-or-later.
+Apache-2.0 or GPL-2.0-or-later. ESP-IDF is Apache-2.0 and includes components
+with their own licenses, including BSD-2-Clause micro-ecc.

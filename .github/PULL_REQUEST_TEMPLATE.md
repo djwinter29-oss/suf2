@@ -11,7 +11,7 @@
 - [ ] Bug fix
 - [ ] New feature
 - [ ] Documentation / specification
-- [ ] Firmware (portable verifier / RP2040 / RP2350)
+- [ ] Firmware (portable verifier / RP2040 / RP2350 / ESP32-S3)
 - [ ] Host tooling (Python / .NET / dashboard)
 - [ ] CI / release tooling
 

@@ -12,4 +12,4 @@ updates:
       interval: weekly
 
   # Submodules are not listed: Dependabot would move them to a branch head,
-  # not a release tag. Bump pico-sdk and Mbed TLS by hand.
+  # not a release tag. Bump pico-sdk, Mbed TLS, ESP-IDF and TinyUSB by hand.

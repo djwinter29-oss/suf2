@@ -1,0 +1,6 @@
+menu "SUF2 blink example"
+    config SUF2_BLINK_GPIO
+        int "GPIO for an external LED"
+        range 0 48
+        default 2
+endmenu

@@ -1,0 +1,47 @@
+---
+:project:
+  :name: SUF2 unit tests
+  :which_ceedling: gem
+  :ceedling_version: 1.1.9
+  :use_mocks: true
+  :use_test_preprocessor: :mocks
+  :build_root: ../../build/ceedling-suf2
+  :test_file_prefix: test_
+  :default_tasks:
+    - test:all
+
+:paths:
+  :test:
+    - tests/unit/**
+  :source:
+    - src/**
+  :include:
+    - include
+    - include/suf2
+
+:flags:
+  :test:
+    :compile:
+      '*':
+        - -std=c11
+        - -Wall
+        - -Wextra
+
+:cmock:
+  :mock_prefix: mock_
+  :enforce_strict_ordering: true
+  :plugins:
+    - :ignore
+    - :ignore_arg
+    - :expect_any_args
+    - :return_thru_ptr
+    - :array
+
+:plugins:
+  :enabled:
+    - report_tests_pretty_stdout
+    - report_tests_log_factory
+
+:report_tests_log_factory:
+  :reports:
+    - junit

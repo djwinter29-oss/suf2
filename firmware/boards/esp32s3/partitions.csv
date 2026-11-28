@@ -1,0 +1,7 @@
+# Name, Type, SubType, Offset, Size, Flags
+nvs, data, nvs, 0x21000, 0x6000,
+phy_init, data, phy, 0x27000, 0x1000,
+recovery, app, factory, 0x30000, 0x100000,
+suf2_meta, data, 0x40, 0x130000, 0x1000,
+candidate, app, test, 0x140000, 0x100000,
+staging, data, 0x41, 0x240000, 0x100000,

@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-Usage: tools/firmware/flash.sh [options] [rp2040|rp2350]
+Usage: tools/firmware/flash.sh [options] [rp2040|rp2350|esp32s3]
 
 Writes build/<board>/suf2_loader to the board, then optionally installs an app.
 Build first with tools/firmware/build.sh.
@@ -15,9 +15,12 @@ Loader methods (--method):
   picotool  load suf2_loader.uf2 with picotool over USB (board in BOOTSEL)
   swd       program suf2_loader.elf with OpenOCD and a CMSIS-DAP probe
             (for example the Raspberry Pi Debug Probe)
+  serial    ESP32-S3 only: flash the custom bootloader, partition table and
+            recovery app using ESP-IDF; requires --port (default for esp32s3)
 
 Options:
-  --method M      uf2, picotool or swd
+  --method M      uf2, picotool, swd or serial
+  --port PORT     explicit ESP32-S3 serial device (for example /dev/ttyUSB0)
   --app FILE      after the loader, copy FILE (.suf2) to the SUF2BOOT drive
   --app-only FILE only copy FILE to SUF2BOOT; do not touch the loader
   --blink         same as --app build/<board>/blink/blink.suf2
@@ -29,12 +32,14 @@ Examples:
   tools/firmware/flash.sh rp2040
   tools/firmware/flash.sh rp2350 --method swd --blink
   tools/firmware/flash.sh --app-only my_app.suf2
+  tools/firmware/flash.sh esp32s3 --port /dev/ttyUSB0 --blink --dry-run
 EOF
 }
 
 repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 board=rp2040
-method=uf2
+method=""
+port=""
 app=""
 app_only=0
 blink=0
@@ -43,8 +48,9 @@ dry=0
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        rp2040|rp2350) board=$1 ;;
+        rp2040|rp2350|esp32s3) board=$1 ;;
         --method) method=$2; shift ;;
+        --port) port=$2; shift ;;
         --app) app=$(realpath "$2"); shift ;;
         --app-only) app=$(realpath "$2"); app_only=1; shift ;;
         --blink) blink=1 ;;
@@ -57,6 +63,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 dir=$repo/build/$board
+[[ -n $method ]] || { if [[ $board == esp32s3 ]]; then method=serial; else method=uf2; fi; }
 [[ $blink == 1 ]] && app=$dir/blink/blink.suf2
 
 die() { echo "error: $*" >&2; exit 1; }
@@ -104,7 +111,20 @@ copy_to() {
 
 flash_loader() {
     local uf2=$dir/suf2_loader.uf2 elf=$dir/suf2_loader.elf
+    if [[ $board == esp32s3 && $method != serial ]]; then
+        die "ESP32-S3 requires --method serial"
+    fi
     case $method in
+        serial)
+            [[ $board == esp32s3 ]] || die "serial is supported for ESP32-S3 only"
+            [[ -n $port ]] || die "ESP32-S3 flashing requires an explicit --port"
+            [[ -f $dir/suf2-boot/flasher_args.json ]] || die "build ESP32-S3 first"
+            # shellcheck source=tools/firmware/esp_idf_env.sh
+            source "$repo/tools/firmware/esp_idf_env.sh"
+            suf2_esp32_environment "$repo"
+            run idf.py -C "$repo/firmware/boards/esp32s3/suf2-boot" \
+                -B "$dir/suf2-boot" -p "$port" flash
+            ;;
         uf2)
             [[ -f $uf2 ]] || die "$uf2 not found; run tools/firmware/build.sh $board"
             local labels=(RPI-RP2)

@@ -1,7 +1,8 @@
 /*
- * Crypto backend interface used by the SUF2 core. The default backend is
- * port/suf2_crypto_mbedtls.c; a platform may supply its own (for example a
- * hardware SHA-256) by linking a different implementation of these functions.
+ * Porting contract used by the SUF2 core. The firmware integration must link
+ * one implementation of these functions. The RP2 board example supplies an
+ * Mbed TLS implementation in firmware/boards/rp2/suf2-boot/port; another platform may
+ * provide its own backend without changing this interface.
  */
 #ifndef SUF2_SUF2_CRYPTO_H
 #define SUF2_SUF2_CRYPTO_H

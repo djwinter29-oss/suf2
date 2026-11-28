@@ -30,11 +30,22 @@ behavior. Update related documents when behavior changes.
 - `host/dashboard/`: static browser dashboard.
 - `host/shared/`: shared key-format examples, local test-key generator, and
   cross-producer tests.
-- `firmware/suf2/`: portable C verifier, public API, crypto backend, and tests.
-  Keep its core heap-free and independent of board/platform code.
-- `firmware/boards/rp2-common/`: shared RP2 loader, app helper, example, and
-  simulation tests.
-- `firmware/boards/rp2040/` and `firmware/boards/rp2350/`: board CMake projects.
+- `firmware/suf2/`: portable C verifier, staged installer/journal, virtual FAT16
+  drive, and tests. `include/suf2/` defines their APIs, storage callbacks, and
+  crypto-port contract. Keep the
+  core heap-free and independent of board/platform code and crypto libraries.
+- `firmware/boards/rp2/`: one CMake project for both chips, with two application
+  folders: `suf2-boot/` (boot flow, hardware adapters, app helper, port and
+  simulation tests) and `blink/` (example app). Keep reusable logic in
+  `firmware/suf2/`. Select `SUF2_BOARD=rp2040`
+  or `rp2350`; keep separate `build/rp2040` and `build/rp2350` caches.
+- `firmware/boards/rp2/suf2-boot/port/`: example Mbed TLS backend, configuration, and
+  build wiring. Implementations belong to board integrations, not the public
+  headers or portable core. Native tests explicitly reuse this example port.
+- `firmware/boards/esp32s3/`: two ESP-IDF projects, `suf2-boot/` (custom
+  second-stage boot selection plus USB recovery app and ports) and `blink/`.
+  Keep separate `build/esp32s3/{suf2-boot,blink}/` caches. The recovery app reuses
+  the RP2 Mbed TLS source; the bootloader uses IDF ROM SHA/micro-ecc.
 - `firmware/lib/`: pinned third-party git submodules. Do not edit vendored
   sources or change their revisions as a side effect of another task.
 - `tools/host/`: `run_python.sh`, `run_dotnet.sh`, `run_dashboard.sh`, and
@@ -62,6 +73,11 @@ outputs belong in ignored `build/`.
 - Preserve the explicit address/range/fill contract. Reject overlaps and
   invalid input; never silently rebase, fill gaps, or discard loaded bytes.
   HEX/ELF retain physical addresses; ELF BSS is not image data.
+- The ESP32-S3 demo is an experimental native-container profile: sign the
+  complete ESP-IDF application BIN with execution-window base `0x42000000`,
+  not a physical partition offset, ELF conversion or merged flash image.
+  Do not claim flat-image conformance. Retain its signed-length native-image
+  check and single-authorized-partition IDF fallback list.
 - Keep firmware and private-key processing local in the dashboard. Do not add
   remote scripts, analytics, key persistence, or server uploads.
 - Generate development keys into ignored `host/shared/local/`. Never commit
@@ -69,7 +85,9 @@ outputs belong in ignored `build/`.
   containers, not an implemented CA authorization mechanism.
 - Platform enforcement is separate from package authentication. RP2040 lacks
   hardware secure boot. Do not automate irreversible RP2350 OTP/security
-  provisioning or flash attached hardware without explicit user authorization.
+  provisioning, ESP32-S3 eFuse/flash-encryption provisioning, or flash attached
+  hardware without explicit user authorization. Never flash the ESP32-S3 blink
+  project's generated bootloader; install its signed package through SUF2BOOT.
 - Anti-rollback and encryption at rest are outside the v0.1 design scope.
 
 ## Implementing and checking changes
@@ -100,11 +118,16 @@ PYTHONPATH=host/python/src python3 -m unittest discover -s host/shared/tests -v
 # Full host checks (inspect output: missing dotnet/npm may be skipped)
 tools/host/run_tests.sh
 
-# Native verifier and loader simulation tests
+# Ceedling unit tests (install the firmware/suf2 Gemfile bundle first)
+tools/firmware/run_unit_tests.sh
+
+# Ceedling, native verifier and loader simulation tests
 tools/firmware/build.sh --test-only
 
 # Board builds, without flashing
 tools/firmware/build.sh all
+# ESP32-S3 requires firmware/lib/esp-idf/install.sh esp32s3 first
+tools/firmware/build.sh esp32s3
 
 # Shell syntax and ShellCheck when available
 tools/validation/syntax-check-shell.sh
@@ -114,6 +137,17 @@ Use `tools/firmware/flash.sh --dry-run` for command verification unless a real
 flash was requested. Do not present simulation or dry-run results as hardware
 validation. Documentation-only changes need no build unless they change a
 testable contract.
+
+Portable unit tests live in `firmware/suf2/tests/unit/` and use Ceedling,
+Unity and CMock. Mock the crypto contract for isolated tests; retain native
+tests with real crypto and the board simulation for integration evidence.
+Keep generated mocks and reports in ignored `build/ceedling-suf2/`.
+
+Do not develop unit tests for code in `firmware/boards/`: it is demo code.
+Firmware unit-test development belongs to reusable code in `firmware/suf2/`,
+not the board bootloader, adapters, or blink example. Validate demo changes
+with builds and existing integration/simulation checks; retain those existing
+checks.
 
 ## CI and releases
 

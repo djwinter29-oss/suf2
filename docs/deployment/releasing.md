@@ -11,12 +11,16 @@ reusable workflows.
 
 [Firmware validation](../../.github/workflows/firmware-validation.yml):
 
-- Builds and runs the verifier library tests and the loader simulation
+- Runs Ceedling unit tests (Unity/CMock), native verifier tests and the loader simulation
   (`tools/firmware/build.sh --test-only`).
+- Uploads the unit-test reports, including JUnit XML.
 - Builds the RP2040 and RP2350 loaders with throwaway test keys.
+- Cross-builds the ESP32-S3 custom bootloader, USB recovery app and signed native
+  blink example with the pinned ESP-IDF/TinyUSB libraries. Checks flash arguments,
+  partition bounds, shared keys, native image metadata and signed BIN preservation.
 - Runs `tools/release/verify-build.py` on each loader. It checks:
   - the loader fits in its flash region;
-  - every UF2 block has the right family ID;
+  - every RP2 loader UF2 block has the right family ID;
   - the signed blink example is accepted by the verification harness.
 - Confirms that a production configure (`SUF2_PRODUCTION=ON`) refuses a
   test key.
@@ -145,5 +149,5 @@ Dependabot ([dependabot.yml](../../.github/dependabot.yml)) proposes weekly
 updates for the Python package and the pinned GitHub Actions. All actions are
 pinned to a full commit SHA, with the version in a comment.
 
-The `pico-sdk` and Mbed TLS submodules are updated by hand. Move them to a
+The `pico-sdk`, Mbed TLS, ESP-IDF and standalone TinyUSB submodules are updated by hand. Move them to a
 release tag, never a branch head, and note the change in the pull request.
