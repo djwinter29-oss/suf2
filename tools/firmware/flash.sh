@@ -4,10 +4,10 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-Usage: firmware/flash.sh [options] [rp2040|rp2350]
+Usage: tools/firmware/flash.sh [options] [rp2040|rp2350]
 
 Writes build/<board>/suf2_loader to the board, then optionally installs an app.
-Build first with firmware/build.sh.
+Build first with tools/firmware/build.sh.
 
 Loader methods (--method):
   uf2       copy suf2_loader.uf2 to the BOOTSEL drive (default).
@@ -26,13 +26,13 @@ Options:
   -h, --help      show this help
 
 Examples:
-  firmware/flash.sh rp2040
-  firmware/flash.sh rp2350 --method swd --blink
-  firmware/flash.sh --app-only my_app.suf2
+  tools/firmware/flash.sh rp2040
+  tools/firmware/flash.sh rp2350 --method swd --blink
+  tools/firmware/flash.sh --app-only my_app.suf2
 EOF
 }
 
-repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 board=rp2040
 method=uf2
 app=""
@@ -106,7 +106,7 @@ flash_loader() {
     local uf2=$dir/suf2_loader.uf2 elf=$dir/suf2_loader.elf
     case $method in
         uf2)
-            [[ -f $uf2 ]] || die "$uf2 not found; run firmware/build.sh $board"
+            [[ -f $uf2 ]] || die "$uf2 not found; run tools/firmware/build.sh $board"
             local labels=(RPI-RP2)
             [[ $board == rp2350 ]] && labels=(RP2350)
             local mnt
@@ -115,7 +115,7 @@ flash_loader() {
             copy_to "$uf2" "$mnt"
             ;;
         picotool)
-            [[ -f $uf2 ]] || die "$uf2 not found; run firmware/build.sh $board"
+            [[ -f $uf2 ]] || die "$uf2 not found; run tools/firmware/build.sh $board"
             local pt
             pt=$(command -v picotool || true)
             [[ -z $pt && -x $dir/_deps/picotool/picotool ]] && pt=$dir/_deps/picotool/picotool
@@ -123,7 +123,7 @@ flash_loader() {
             run "$pt" load -v -x "$uf2"
             ;;
         swd)
-            [[ -f $elf ]] || die "$elf not found; run firmware/build.sh $board"
+            [[ -f $elf ]] || die "$elf not found; run tools/firmware/build.sh $board"
             command -v openocd >/dev/null || die "openocd not found"
             local target=rp2040.cfg
             [[ $board == rp2350 ]] && target=rp2350.cfg

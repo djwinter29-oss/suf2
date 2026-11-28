@@ -12,7 +12,7 @@ reusable workflows.
 [Firmware validation](../../.github/workflows/firmware-validation.yml):
 
 - Builds and runs the verifier library tests and the loader simulation
-  (`firmware/build.sh --test-only`).
+  (`tools/firmware/build.sh --test-only`).
 - Builds the RP2040 and RP2350 loaders with throwaway test keys.
 - Runs `tools/release/verify-build.py` on each loader. It checks:
   - the loader fits in its flash region;
@@ -32,8 +32,8 @@ reusable workflows.
   an image.
 - `bash -n` and ShellCheck on every script, and the tag-format rules.
 
-You can run most of this locally with `host/run_tests.sh`,
-`firmware/build.sh all --test` and `tools/validation/syntax-check-shell.sh`.
+You can run most of this locally with `tools/host/run_tests.sh`,
+`tools/firmware/build.sh all --test` and `tools/validation/syntax-check-shell.sh`.
 
 ## Cutting a release
 
@@ -96,7 +96,7 @@ on a device.
 So each product builds its own loader from the release tag:
 
 ```sh
-firmware/build.sh --no-sign rp2350 -- \
+tools/firmware/build.sh --no-sign rp2350 -- \
   -DSUF2_PRODUCTION=ON \
   -DSUF2_TRUSTED_KEYS=/path/to/your-public.pem \
   -DSUF2_PRODUCT_ID=<32 hex digits>

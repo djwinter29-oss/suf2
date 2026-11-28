@@ -22,14 +22,14 @@ Each script works from any directory and needs no install step:
 
 | Script | Runs |
 | --- | --- |
-| `host/run_python.sh ARGS` | the Python CLI (needs the `cryptography` package) |
-| `host/run_dotnet.sh ARGS` | the .NET CLI; builds it first if the sources changed |
-| `host/run_dashboard.sh [PORT]` | serves the dashboard at `http://127.0.0.1:8000/` |
-| `host/run_tests.sh` | every check listed under [Checks](#checks) |
+| `tools/host/run_python.sh ARGS` | the Python CLI (needs the `cryptography` package) |
+| `tools/host/run_dotnet.sh ARGS` | the .NET CLI; builds it first if the sources changed |
+| `tools/host/run_dashboard.sh [PORT]` | serves the dashboard at `http://127.0.0.1:8000/` |
+| `tools/host/run_tests.sh` | every check listed under [Checks](#checks) |
 
 ```sh
 python3 host/shared/generate-test-keys.py
-host/run_python.sh pack --input app.elf --output app.suf2 \
+tools/host/run_python.sh pack --input app.elf --output app.suf2 \
     --key host/shared/local/signing-private.pem \
     --product-id 00112233445566778899aabbccddeeff --base 0x10011000
 ```
@@ -89,7 +89,7 @@ npm --prefix host/dashboard test
 PYTHONPATH=host/python/src python -m unittest discover -s host/shared/tests -v
 ```
 
-Run these from the repository root, or run `host/run_tests.sh`, which skips
+Run these from the repository root, or run `tools/host/run_tests.sh`, which skips
 .NET or the dashboard if `dotnet` or `npm` is missing. The interoperability tests build BIN, HEX,
 ELF32 and ELF64 packages with each producer, then independently verify the
 signature, manifest, image and block framing with Python's crypto library.

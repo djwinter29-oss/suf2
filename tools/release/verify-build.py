@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: BSD-3-Clause
 # Copyright (c) 2026 Ji Dong
-"""Check a firmware/build.sh output folder against the board's flash layout.
+"""Check a tools/firmware/build.sh output folder against the board's flash layout.
 
 Checks that:
 - the loader binary fits the loader region;

@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-Usage: firmware/build.sh [options] [rp2040|rp2350|all] [-- extra cmake args]
+Usage: tools/firmware/build.sh [options] [rp2040|rp2350|all] [-- extra cmake args]
 
 Builds the SUF2 loader and the blink example into build/<board>.
 
@@ -19,13 +19,13 @@ Options:
   -h, --help      show this help
 
 Examples:
-  firmware/build.sh rp2040
-  firmware/build.sh all --test
-  firmware/build.sh rp2350 -- -DPICO_BOARD=pimoroni_pico_plus2_rp2350
+  tools/firmware/build.sh rp2040
+  tools/firmware/build.sh all --test
+  tools/firmware/build.sh rp2350 -- -DPICO_BOARD=pimoroni_pico_plus2_rp2350
 EOF
 }
 
-repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 board=rp2040
 key=""
 sign=1

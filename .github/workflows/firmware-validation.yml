@@ -33,7 +33,7 @@ jobs:
         run: python -m pip install cryptography
 
       - name: Library and loader simulation tests
-        run: firmware/build.sh --test-only
+        run: tools/firmware/build.sh --test-only
 
   boards:
     name: Loader (${{ matrix.board }})
@@ -76,7 +76,7 @@ jobs:
       - name: Build loader and signed blink example
         env:
           BOARD: ${{ matrix.board }}
-        run: firmware/build.sh "$BOARD"
+        run: tools/firmware/build.sh "$BOARD"
 
       - name: Build verification harness
         run: |

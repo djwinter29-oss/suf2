@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run all host tool tests: Python, .NET, dashboard and cross-producer checks.
 set -euo pipefail
-here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../host" && pwd)
 python=${PYTHON:-python3}
 export PYTHONPATH="$here/python/src${PYTHONPATH:+:$PYTHONPATH}"
 echo "==> Python"

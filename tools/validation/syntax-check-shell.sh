@@ -11,7 +11,7 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$root"
 
 mapfile -t scripts < <(git ls-files --cached --others --exclude-standard \
-    'firmware/*.sh' 'host/*.sh' 'tools/*.sh' | sort -u)
+    'tools/*.sh' | sort -u)
 
 if [ "${#scripts[@]}" -eq 0 ]; then
     echo "no shell scripts found" >&2
